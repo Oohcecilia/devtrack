@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ const emptyEmployee = {
   position: "",
 };
 
-export default function EmployeeFormDialog({ open, onClose, onSave, employee }) {
+export default function EmployeeFormDialog({ open, onClose, onSave, employee, saving = false, error = "" }) {
   const [form, setForm] = useState(emptyEmployee);
   const isEditing = !!employee;
 
@@ -23,10 +23,9 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee }) 
     }
   }, [employee, open]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSave(form);
-    onClose();
+    await onSave(form);
   };
 
   return (
@@ -34,19 +33,22 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee }) 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Employee" : "Add New Employee"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Enter the employee name and department. Employee ID and position are optional.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-	          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Employee ID</Label>
               <Input
                 value={form.employee_id}
                 onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-                placeholder="e.g. EMP-001"
+                placeholder="Auto-generated if blank"
               />
             </div>
             <div className="space-y-2">
-              <Label>Full Name</Label>
+              <Label>Name</Label>
               <Input
                 required
                 value={form.full_name}
@@ -55,10 +57,11 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee }) 
               />
             </div>
           </div>
-	          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Department</Label>
               <Input
+                required
                 value={form.department}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
                 placeholder="e.g. Engineering"
@@ -73,9 +76,16 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee }) 
               />
             </div>
           </div>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit">{isEditing ? "Save Changes" : "Add Employee"}</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving..." : isEditing ? "Save Changes" : "Add Employee"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

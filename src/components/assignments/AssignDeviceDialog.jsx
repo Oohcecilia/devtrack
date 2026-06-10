@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,8 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedDevices, setSelectedDevices] = useState([]);
   const [notes, setNotes] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const availableDevices = devices.filter(d => d.status === "Available");
 
@@ -22,15 +24,30 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
     );
   };
 
-  const handleSubmit = (e) => {
+  const resetForm = () => {
+    setSelectedEmployee("");
+    setSelectedDevices([]);
+    setNotes("");
+    setFormError("");
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError("");
+
     const employee = employees.find(emp => emp.id === selectedEmployee);
-    if (!employee || selectedDevices.length === 0) return;
+    if (!employee || selectedDevices.length === 0) {
+      setFormError("Select an employee and at least one available device");
+      return;
+    }
 
     const assignments = selectedDevices.map(deviceId => {
       const device = devices.find(d => d.id === deviceId);
+      if (!device || device.status !== "Available") {
+        return null;
+      }
       return {
-        employee_id: employee.employee_id,
+        employee_id: employee.employee_id || employee.id,
         employee_name: employee.full_name,
         device_id: device.id,
         device_name: device.device_name,
@@ -39,13 +56,26 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
         status: "Active",
         notes,
       };
-    });
+    }).filter(Boolean);
 
-    onAssign(assignments, selectedDevices);
-    setSelectedEmployee("");
-    setSelectedDevices([]);
-    setNotes("");
-    onClose();
+    if (assignments.length !== selectedDevices.length) {
+      setFormError("One or more selected devices are no longer available");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const assigned = await onAssign(assignments, selectedDevices);
+      if (assigned === false) {
+        return;
+      }
+      resetForm();
+      onClose();
+    } catch (error) {
+      setFormError(error.message || "Unable to assign selected device(s)");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -53,6 +83,9 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Assign Devices</DialogTitle>
+          <DialogDescription className="sr-only">
+            Select an employee, choose one or more available devices, and add optional assignment notes.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -64,7 +97,7 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
               <SelectContent>
                 {employees.map(emp => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    {emp.full_name} ({emp.employee_id})
+                    {emp.full_name}{emp.employee_id ? ` (${emp.employee_id})` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -106,10 +139,16 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
             />
           </div>
 
+          {formError && (
+            <p className="text-sm text-destructive" role="alert">
+              {formError}
+            </p>
+          )}
+
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={!selectedEmployee || selectedDevices.length === 0}>
-              Assign {selectedDevices.length > 0 ? `(${selectedDevices.length})` : ""}
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting || !selectedEmployee || selectedDevices.length === 0}>
+              {isSubmitting ? "Assigning..." : `Assign ${selectedDevices.length > 0 ? `(${selectedDevices.length})` : ""}`}
             </Button>
           </DialogFooter>
         </form>

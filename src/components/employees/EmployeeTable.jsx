@@ -9,7 +9,7 @@ export default function EmployeeTable({ employees, onEdit, onDelete }) {
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">
             <TableHead className="font-semibold">Employee ID</TableHead>
-            <TableHead className="font-semibold">Full Name</TableHead>
+            <TableHead className="font-semibold">Name</TableHead>
             <TableHead className="font-semibold hidden md:table-cell">Department</TableHead>
             <TableHead className="font-semibold hidden md:table-cell">Position</TableHead>
             <TableHead className="font-semibold text-right">Actions</TableHead>
@@ -23,7 +23,7 @@ export default function EmployeeTable({ employees, onEdit, onDelete }) {
               <TableCell className="hidden md:table-cell text-muted-foreground">{emp.department}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground">{emp.position}</TableCell>
               <TableCell className="text-right">
-	                <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(emp)}>
                     <Pencil className="w-4 h-4" />
                   </Button>

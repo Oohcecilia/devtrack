@@ -14,6 +14,7 @@ export default function Employees() {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [deletingEmployee, setDeletingEmployee] = useState(null);
   const [search, setSearch] = useState("");
+  const [formError, setFormError] = useState("");
   const queryClient = useQueryClient();
 
   const { data: employees = [], isLoading } = useQuery({
@@ -36,17 +37,25 @@ export default function Employees() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
   });
 
-  const handleSave = (formData) => {
-    if (editingEmployee) {
-      updateMutation.mutate({ id: editingEmployee.id, data: formData });
-    } else {
-      createMutation.mutate(formData);
+  const handleSave = async (formData) => {
+    setFormError("");
+
+    try {
+      if (editingEmployee) {
+        await updateMutation.mutateAsync({ id: editingEmployee.id, data: formData });
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
+      setShowForm(false);
+      setEditingEmployee(null);
+    } catch (error) {
+      setFormError(error.message || "Unable to save employee");
     }
-    setEditingEmployee(null);
   };
 
   const handleEdit = (emp) => {
     setEditingEmployee(emp);
+    setFormError("");
     setShowForm(true);
   };
 
@@ -76,7 +85,7 @@ export default function Employees() {
             className="pl-9"
           />
         </div>
-	        <Button className="w-full sm:w-auto" onClick={() => { setEditingEmployee(null); setShowForm(true); }}>
+        <Button className="w-full sm:w-auto" onClick={() => { setEditingEmployee(null); setFormError(""); setShowForm(true); }}>
           <Plus className="w-4 h-4 mr-2" />
           Add Employee
         </Button>
@@ -92,7 +101,7 @@ export default function Employees() {
           title={employees.length === 0 ? "No employees yet" : "No matching employees"}
           description={employees.length === 0 ? "Add your first employee to get started." : "Try adjusting your search."}
           action={employees.length === 0 && (
-            <Button onClick={() => setShowForm(true)}>
+            <Button onClick={() => { setFormError(""); setShowForm(true); }}>
               <Plus className="w-4 h-4 mr-2" /> Add First Employee
             </Button>
           )}
@@ -103,9 +112,11 @@ export default function Employees() {
 
       <EmployeeFormDialog
         open={showForm}
-        onClose={() => { setShowForm(false); setEditingEmployee(null); }}
+        onClose={() => { setShowForm(false); setEditingEmployee(null); setFormError(""); }}
         onSave={handleSave}
         employee={editingEmployee}
+        saving={createMutation.isPending || updateMutation.isPending}
+        error={formError}
       />
 
       <AlertDialog open={!!deletingEmployee} onOpenChange={() => setDeletingEmployee(null)}>

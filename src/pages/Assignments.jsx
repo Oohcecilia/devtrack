@@ -11,6 +11,10 @@ import EmptyState from "@/components/shared/EmptyState";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+function errorMessage(error, fallback) {
+  return error?.message || fallback;
+}
+
 export default function Assignments() {
   const [showAssign, setShowAssign] = useState(false);
   const [search, setSearch] = useState("");
@@ -48,37 +52,66 @@ export default function Assignments() {
   });
 
   const handleAssign = async (assignmentsList, deviceIds) => {
-    for (const assignment of assignmentsList) {
-      await createAssignment.mutateAsync(assignment);
+    try {
+      if (!assignmentsList.length || !deviceIds.length) {
+        throw new Error("Select at least one available device to assign");
+      }
+
+      const hasUnavailableDevice = deviceIds
+        .map((deviceId) => devices.find((device) => device.id === deviceId))
+        .some((device) => !device || device.status !== "Available");
+
+      if (hasUnavailableDevice) {
+        throw new Error("One or more selected devices are no longer available");
+      }
+
+      for (const assignment of assignmentsList) {
+        await createAssignment.mutateAsync(assignment);
+      }
+      for (const deviceId of deviceIds) {
+        await updateDevice.mutateAsync({ id: deviceId, data: { status: "Assigned" } });
+      }
+      toast.success(`${assignmentsList.length} device(s) assigned successfully`);
+      return true;
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to assign selected device(s)"));
+      return false;
     }
-    for (const deviceId of deviceIds) {
-      await updateDevice.mutateAsync({ id: deviceId, data: { status: "Assigned" } });
-    }
-    toast.success(`${assignmentsList.length} device(s) assigned successfully`);
   };
 
   const handleReturn = async (assignment) => {
-    await updateAssignment.mutateAsync({
-      id: assignment.id,
-      data: { status: "Returned", returned_date: format(new Date(), "yyyy-MM-dd") },
-    });
-    // Find the device by matching asset_tag and update its status
-    const device = devices.find(d => d.asset_tag === assignment.asset_tag);
-    if (device) {
-      await updateDevice.mutateAsync({ id: device.id, data: { status: "Available" } });
+    try {
+      if (assignment.status === "Returned") {
+        toast.info("Device has already been returned");
+        return;
+      }
+
+      await updateAssignment.mutateAsync({
+        id: assignment.id,
+        data: { status: "Returned", returned_date: format(new Date(), "yyyy-MM-dd") },
+      });
+      const device = devices.find(d => d.asset_tag === assignment.asset_tag);
+      if (device) {
+        await updateDevice.mutateAsync({ id: device.id, data: { status: "Available" } });
+      }
+      toast.success("Device returned successfully");
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to return device"));
     }
-    toast.success("Device returned successfully");
   };
 
   const handleGenerateLetter = async (assignment) => {
-    const employee = employees.find(e => e.employee_id === assignment.employee_id);
-    // Get all active assignments for this employee
-    const empAssignments = assignments.filter(
-      a => a.employee_id === assignment.employee_id && a.status === "Active"
-    );
-    const { generateAcknowledgementPDF } = await import("@/lib/pdfUtils");
-    generateAcknowledgementPDF(assignment, employee, empAssignments);
-    toast.success("Acknowledgement letter downloaded");
+    try {
+      const employee = employees.find(e => e.employee_id === assignment.employee_id || e.id === assignment.employee_id);
+      const empAssignments = assignments.filter(
+        a => a.employee_id === assignment.employee_id && a.status === "Active"
+      );
+      const { generateAcknowledgementPDF } = await import("@/lib/pdfUtils");
+      generateAcknowledgementPDF(assignment, employee, empAssignments);
+      toast.success("Acknowledgement letter downloaded");
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to generate acknowledgement letter"));
+    }
   };
 
   const filtered = assignments.filter(a => {
@@ -114,7 +147,7 @@ export default function Assignments() {
             </SelectContent>
           </Select>
         </div>
-	        <Button className="w-full sm:w-auto" onClick={() => setShowAssign(true)}>
+        <Button className="w-full sm:w-auto" onClick={() => setShowAssign(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Assign Devices
         </Button>

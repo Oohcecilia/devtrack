@@ -13,7 +13,7 @@ const schemas = {
   Employee: {
     dbName: "employees",
     fields: ["employee_id", "full_name", "department", "position"],
-    required: ["employee_id", "full_name", "department", "position"],
+    required: ["full_name", "department"],
     defaults: {},
     unique: ["employee_id"],
   },
@@ -122,10 +122,10 @@ export class EntityRepository {
 
   async create(payload, user) {
     const now = new Date().toISOString();
-    const data = {
+    const data = await this.prepareForSave({
       ...this.schema.defaults,
       ...compactPayload(payload, this.schema.fields),
-    };
+    });
 
     await this.validate(data);
     await this.assertUnique(data);
@@ -145,12 +145,12 @@ export class EntityRepository {
 
   async update(id, payload, user) {
     const existing = await this.couch.getDoc(this.dbName, id);
-    const next = {
+    const next = await this.prepareForSave({
       ...existing,
       ...compactPayload(payload, this.schema.fields),
       updated_at: new Date().toISOString(),
       updated_by: user?.username || existing.updated_by || null,
-    };
+    });
 
     await this.validate(next);
     await this.assertUnique(next, id);
@@ -175,6 +175,39 @@ export class EntityRepository {
     if (this.schema.statuses && !this.schema.statuses.includes(data.status)) {
       throw new HttpError(400, `status must be one of: ${this.schema.statuses.join(", ")}`);
     }
+  }
+
+  async prepareForSave(data) {
+    if (this.entityName !== "Employee") {
+      return data;
+    }
+
+    if (String(data.employee_id || "").trim()) {
+      return data;
+    }
+
+    return {
+      ...data,
+      employee_id: await this.generateEmployeeId(),
+    };
+  }
+
+  async generateEmployeeId() {
+    const docs = await this.couch.allDocs(this.dbName);
+    const usedIds = new Set(
+      docs
+        .map((doc) => String(doc.employee_id || "").trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const candidate = `EMP-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+      if (!usedIds.has(candidate.toLowerCase())) {
+        return candidate;
+      }
+    }
+
+    return `EMP-${Date.now().toString(36).toUpperCase()}`;
   }
 
   async assertUnique(data, currentId = null) {
