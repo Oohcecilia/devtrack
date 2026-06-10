@@ -40,7 +40,6 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee }) 
             <div className="space-y-2">
               <Label>Employee ID</Label>
               <Input
-                required
                 value={form.employee_id}
                 onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
                 placeholder="e.g. EMP-001"
@@ -60,7 +59,6 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee }) 
             <div className="space-y-2">
               <Label>Department</Label>
               <Input
-                required
                 value={form.department}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
                 placeholder="e.g. Engineering"
@@ -69,7 +67,6 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee }) 
             <div className="space-y-2">
               <Label>Position</Label>
               <Input
-                required
                 value={form.position}
                 onChange={(e) => setForm({ ...form, position: e.target.value })}
                 placeholder="e.g. Software Engineer"
