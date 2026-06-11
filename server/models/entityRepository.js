@@ -22,6 +22,7 @@ const schemas = {
     fields: [
       "employee_id",
       "employee_name",
+      "branch",
       "device_id",
       "device_name",
       "asset_tag",

@@ -145,9 +145,6 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
                   onChange={(e) => setForm({ ...form, asset_tag: e.target.value })}
                   placeholder="e.g. AST-001"
                 />
-                <Button type="button" variant="outline" size="icon" onClick={() => setScanTarget("asset_tag")} title="Scan">
-                  <ScanLine className="w-4 h-4" />
-                </Button>
               </div>
             </div>
             <div className="space-y-2">
@@ -252,7 +249,7 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
             )}
           </div>
           <div className="space-y-2">
-            <Label>Category</Label>
+            <Label>Device Group</Label>
             <CategorySelect
               value={form.category}
               onChange={(v) => setForm({ ...form, category: v })}

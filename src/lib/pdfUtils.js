@@ -35,6 +35,7 @@ export function generateAcknowledgementPDF(assignment, employee, devices) {
   const empInfo = [
     `Employee ID: ${employee?.employee_id || assignment.employee_id || "N/A"}`,
     `Name: ${employee?.full_name || assignment.employee_name}`,
+    `Branch: ${assignment.branch || "N/A"}`,
     `Department: ${employee?.department || "N/A"}`,
     `Position: ${employee?.position || "N/A"}`,
   ];
@@ -193,12 +194,13 @@ export function generateAssignmentReportPDF(assignments) {
   doc.setFont("helvetica", "bold");
   doc.setFillColor(240, 240, 240);
   doc.rect(margin, y - 4, pageWidth - margin * 2, 8, "F");
-  const cols = [margin + 2, margin + 40, margin + 80, margin + 105, margin + 135];
+  const cols = [margin + 2, margin + 34, margin + 62, margin + 92, margin + 118, margin + 148];
   doc.text("Employee", cols[0], y);
-  doc.text("Device", cols[1], y);
-  doc.text("Asset Tag", cols[2], y);
-  doc.text("Assigned", cols[3], y);
-  doc.text("Status", cols[4], y);
+  doc.text("Branch", cols[1], y);
+  doc.text("Device", cols[2], y);
+  doc.text("Asset Tag", cols[3], y);
+  doc.text("Assigned", cols[4], y);
+  doc.text("Status", cols[5], y);
   y += 10;
 
   doc.setFont("helvetica", "normal");
@@ -207,11 +209,12 @@ export function generateAssignmentReportPDF(assignments) {
       doc.addPage();
       y = 20;
     }
-    doc.text((a.employee_name || "").substring(0, 20), cols[0], y);
-    doc.text((a.device_name || "").substring(0, 20), cols[1], y);
-    doc.text(a.asset_tag || "", cols[2], y);
-    doc.text(a.assigned_date ? format(new Date(a.assigned_date), "MMM d, yyyy") : "", cols[3], y);
-    doc.text(a.status || "", cols[4], y);
+    doc.text((a.employee_name || "").substring(0, 16), cols[0], y);
+    doc.text((a.branch || "").substring(0, 14), cols[1], y);
+    doc.text((a.device_name || "").substring(0, 16), cols[2], y);
+    doc.text((a.asset_tag || "").substring(0, 12), cols[3], y);
+    doc.text(a.assigned_date ? format(new Date(a.assigned_date), "MMM d, yyyy") : "", cols[4], y);
+    doc.text(a.status || "", cols[5], y);
     y += 7;
   });
 

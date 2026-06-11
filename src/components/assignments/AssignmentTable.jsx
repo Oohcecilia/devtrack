@@ -11,6 +11,7 @@ export default function AssignmentTable({ assignments, onReturn, onGenerateLette
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">
             <TableHead className="font-semibold">Employee</TableHead>
+            <TableHead className="font-semibold hidden md:table-cell">Branch</TableHead>
             <TableHead className="font-semibold">Device</TableHead>
             <TableHead className="font-semibold hidden md:table-cell">Asset Tag</TableHead>
             <TableHead className="font-semibold hidden md:table-cell">Assigned</TableHead>
@@ -23,6 +24,7 @@ export default function AssignmentTable({ assignments, onReturn, onGenerateLette
           {assignments.map((a) => (
             <TableRow key={a.id} className="group">
               <TableCell className="font-medium">{a.employee_name}</TableCell>
+              <TableCell className="hidden md:table-cell text-muted-foreground">{a.branch || "—"}</TableCell>
               <TableCell>{a.device_name}</TableCell>
               <TableCell className="hidden md:table-cell font-mono text-sm text-muted-foreground">{a.asset_tag}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground">
@@ -33,7 +35,7 @@ export default function AssignmentTable({ assignments, onReturn, onGenerateLette
               </TableCell>
               <TableCell><StatusBadge status={a.status} /></TableCell>
               <TableCell className="text-right">
-	                <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                <div className="flex items-center justify-end gap-1">
                   {a.status === "Active" && (
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="Return Device" onClick={() => onReturn(a)}>
                       <RotateCcw className="w-4 h-4" />

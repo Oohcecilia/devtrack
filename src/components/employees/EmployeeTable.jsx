@@ -23,7 +23,7 @@ export default function EmployeeTable({ employees, onEdit, onDelete }) {
               <TableCell className="hidden md:table-cell text-muted-foreground">{emp.department}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground">{emp.position}</TableCell>
               <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                <div className="flex items-center justify-end gap-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(emp)}>
                     <Pencil className="w-4 h-4" />
                   </Button>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Trash2 } from "lucide-react";
 
 const DEFAULT_CATEGORIES = ["Laptop", "Desktop", "Monitor", "Tablet", "Phone", "Peripheral", "Server", "Networking"];
 
@@ -25,6 +25,7 @@ export default function CategorySelect({ value, onChange }) {
   const [categories, setCategories] = useState(getCategories);
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
+  const visibleCategories = value && !categories.includes(value) ? [value, ...categories] : categories;
 
   const handleAdd = () => {
     const trimmed = newCat.trim();
@@ -35,6 +36,15 @@ export default function CategorySelect({ value, onChange }) {
     onChange(trimmed);
     setNewCat("");
     setAdding(false);
+  };
+
+  const handleRemove = (category) => {
+    const updated = categories.filter((cat) => cat !== category);
+    setCategories(updated);
+    saveCategories(updated);
+    if (value === category) {
+      onChange("");
+    }
   };
 
   return (
@@ -62,8 +72,30 @@ export default function CategorySelect({ value, onChange }) {
               <SelectValue placeholder="Select category..." />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((cat) => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              {visibleCategories.map((cat) => (
+                <div key={cat} className="flex items-center gap-1">
+                  <SelectItem value={cat} className="flex-1 pr-2">
+                    {cat}
+                  </SelectItem>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    title={`Remove ${cat}`}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleRemove(cat);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               ))}
             </SelectContent>
           </Select>

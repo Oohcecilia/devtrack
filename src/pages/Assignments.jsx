@@ -117,6 +117,7 @@ export default function Assignments() {
   const filtered = assignments.filter(a => {
     const matchSearch = !search ||
       a.employee_name?.toLowerCase().includes(search.toLowerCase()) ||
+      a.branch?.toLowerCase().includes(search.toLowerCase()) ||
       a.device_name?.toLowerCase().includes(search.toLowerCase()) ||
       a.asset_tag?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || a.status === statusFilter;

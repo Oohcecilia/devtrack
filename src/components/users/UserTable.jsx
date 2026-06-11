@@ -30,7 +30,7 @@ export default function UserTable({ users, currentUser, onEdit, onResetPassword,
                   {user.updated_at ? new Date(user.updated_at).toLocaleDateString() : "—"}
                 </TableCell>
                 <TableCell className="text-right">
-	                  <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                  <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit User" onClick={() => onEdit(user)}>
                       <Pencil className="w-4 h-4" />
                     </Button>

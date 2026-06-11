@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +11,7 @@ import { format } from "date-fns";
 export default function AssignDeviceDialog({ open, onClose, onAssign, employees, devices }) {
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedDevices, setSelectedDevices] = useState([]);
+  const [branch, setBranch] = useState("");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,6 +29,7 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
   const resetForm = () => {
     setSelectedEmployee("");
     setSelectedDevices([]);
+    setBranch("");
     setNotes("");
     setFormError("");
   };
@@ -49,6 +52,7 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
       return {
         employee_id: employee.employee_id || employee.id,
         employee_name: employee.full_name,
+        branch: branch.trim(),
         device_id: device.id,
         device_name: device.device_name,
         asset_tag: device.asset_tag,
@@ -84,7 +88,7 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
         <DialogHeader>
           <DialogTitle>Assign Devices</DialogTitle>
           <DialogDescription className="sr-only">
-            Select an employee, choose one or more available devices, and add optional assignment notes.
+            Select an employee, enter an optional branch, choose one or more available devices, and add optional assignment notes.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -102,6 +106,15 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Branch</Label>
+            <Input
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              placeholder="e.g. Main Office"
+            />
           </div>
 
           <div className="space-y-2">
