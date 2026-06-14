@@ -10,25 +10,46 @@ DevTrack is a React inventory manager backed by CouchDB. The app tracks devices,
 npm install
 ```
 
-2. Start CouchDB locally. With Docker:
-
-```bash
-docker run --rm -p 5984:5984 -e COUCHDB_USER=admin -e COUCHDB_PASSWORD=password couchdb:3
-```
-
-3. Copy `.env.example` to `.env` and adjust credentials:
+2. Create local environment config:
 
 ```bash
 cp .env.example .env
 ```
 
-4. Start the API and Vite dev server:
+3. Start CouchDB:
+
+```bash
+npm run db:up
+```
+
+4. Create the local databases, indexes, and seed admin user:
+
+```bash
+npm run setup:local
+```
+
+5. Start the API and Vite dev server:
 
 ```bash
 npm run dev
 ```
 
 Open `http://localhost:5173`.
+
+You can also run the full local testing startup with:
+
+```bash
+npm run dev:local
+```
+
+This starts CouchDB, prepares the backend databases, and then starts the API plus Vite dev server.
+
+To stop or reset the local database:
+
+```bash
+npm run db:down   # stop CouchDB and keep data
+npm run db:reset  # stop CouchDB and delete the local CouchDB volume
+```
 
 ## Installable App
 
@@ -82,6 +103,11 @@ The API checks the CouchDB devices database first. If `DEVICE_INFO_API_URL` and 
 
 ```bash
 npm run dev       # API + Vite
+npm run dev:local # CouchDB + setup + API + Vite
+npm run db:up     # start local CouchDB with Docker Compose
+npm run db:down   # stop local CouchDB
+npm run db:reset  # delete local CouchDB data volume
+npm run setup:local # create databases/indexes and seed admin
 npm run build     # production frontend build
 npm run start     # API server, serving dist when available
 npm run lint      # ESLint

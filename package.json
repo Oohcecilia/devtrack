@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "db:up": "docker compose up -d couchdb",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f couchdb",
+    "db:reset": "docker compose down -v",
+    "setup:local": "node server/scripts/setupLocal.js",
+    "dev:local": "npm run db:up && npm run setup:local && npm run dev",
     "dev": "node server/dev.js",
     "dev:api": "node server/index.js",
     "dev:web": "vite --host 0.0.0.0",
@@ -11,7 +17,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "start": "node server/index.js",
     "lint": "eslint .",
-    "check": "node --check server/config.js && node --check server/index.js && node --check server/couchdb/client.js && node --check server/middleware/auth.js && node --check server/models/entityRepository.js && node --check server/models/userRepository.js && node --check server/routes/auth.js && node --check server/routes/entities.js && node --check server/routes/scanner.js && node --check server/routes/users.js && node --check server/services/deviceInfoService.js && node --check server/utils/httpError.js && node --check server/utils/password.js && node --check server/utils/sessionToken.js"
+    "check": "node --check server/config.js && node --check server/index.js && node --check server/couchdb/client.js && node --check server/middleware/auth.js && node --check server/models/entityRepository.js && node --check server/models/userRepository.js && node --check server/routes/auth.js && node --check server/routes/entities.js && node --check server/routes/scanner.js && node --check server/routes/users.js && node --check server/scripts/setupLocal.js && node --check server/services/deviceInfoService.js && node --check server/utils/httpError.js && node --check server/utils/password.js && node --check server/utils/sessionToken.js"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",

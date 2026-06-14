@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { HttpError } from "../utils/httpError.js";
 
+const NON_UNIQUE_SERIAL_VALUES = new Set(["n/a", "na", "not applicable"]);
+
 const schemas = {
   Device: {
     dbName: "devices",
@@ -61,6 +63,14 @@ function toClientDoc(doc, fields) {
   }
 
   return result;
+}
+
+function shouldSkipUniqueCheck(field, value) {
+  if (!value) {
+    return true;
+  }
+
+  return field === "serial_number" && NON_UNIQUE_SERIAL_VALUES.has(String(value).trim().toLowerCase());
 }
 
 export function getEntitySchemas() {
@@ -219,7 +229,7 @@ export class EntityRepository {
     const docs = await this.couch.allDocs(this.dbName);
     for (const field of this.schema.unique) {
       const value = data[field];
-      if (!value) {
+      if (shouldSkipUniqueCheck(field, value)) {
         continue;
       }
 

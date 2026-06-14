@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Keyboard, ScanLine } from "lucide-react";
+import { Ban, Keyboard, ScanLine } from "lucide-react";
 import { couchdb } from "@/api/couchdbClient";
 import { cn } from "@/lib/utils";
 import InlineScannerModal from "./InlineScannerModal";
@@ -20,6 +20,13 @@ const emptyDevice = {
   category: "",
   status: "Available",
   notes: "",
+};
+
+const SERIAL_NOT_APPLICABLE = "N/A";
+const serialModeIndexes = {
+  manual: 0,
+  scan: 1,
+  na: 2,
 };
 
 function hasKnownValue(value) {
@@ -57,12 +64,35 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
   useEffect(() => {
     if (device) {
       setForm({ ...emptyDevice, ...device });
+      setSerialEntryMode(
+        String(device.serial_number || "").trim().toLowerCase() === "n/a" ? "na" : "manual"
+      );
     } else {
       setForm(emptyDevice);
+      setSerialEntryMode("manual");
     }
-    setSerialEntryMode("manual");
     setScanLookupError("");
   }, [device, open]);
+
+  const handleSerialEntryModeChange = (mode) => {
+    setSerialEntryMode(mode);
+    setScanLookupError("");
+
+    if (mode === "na") {
+      setScanTarget(null);
+      setForm((prev) => ({ ...prev, serial_number: SERIAL_NOT_APPLICABLE }));
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      serial_number: prev.serial_number === SERIAL_NOT_APPLICABLE ? "" : prev.serial_number,
+    }));
+
+    if (mode === "scan") {
+      setScanTarget("serial_number");
+    }
+  };
 
   const applyDeviceInfo = (deviceInfo, fallbackSerialNumber) => {
     const serialNumber = hasKnownValue(deviceInfo.serial_number)
@@ -121,7 +151,10 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(form);
+    onSave({
+      ...form,
+      serial_number: serialEntryMode === "na" ? SERIAL_NOT_APPLICABLE : form.serial_number,
+    });
     onClose();
   };
 
@@ -180,12 +213,15 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
           <div className="space-y-2">
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <Label>Serial Number</Label>
-              <div className="relative grid w-full grid-cols-2 rounded-full bg-muted p-1 sm:w-44">
+              <div className="relative grid w-full grid-cols-3 rounded-full bg-muted p-1 sm:w-64">
                 <span
                   className={cn(
-                    "absolute left-1 top-1 bottom-1 w-[calc(50%-0.25rem)] rounded-full bg-background shadow-sm transition-transform",
-                    serialEntryMode === "scan" && "translate-x-full"
+                    "absolute left-1 top-1 bottom-1 rounded-full bg-background shadow-sm transition-transform"
                   )}
+                  style={{
+                    width: "calc((100% - 0.5rem) / 3)",
+                    transform: `translateX(${serialModeIndexes[serialEntryMode] * 100}%)`,
+                  }}
                 />
                 <button
                   type="button"
@@ -194,7 +230,7 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
                     "relative z-10 flex h-8 items-center justify-center rounded-full text-xs font-medium transition-colors",
                     serialEntryMode === "manual" ? "text-foreground" : "text-muted-foreground"
                   )}
-                  onClick={() => setSerialEntryMode("manual")}
+                  onClick={() => handleSerialEntryModeChange("manual")}
                 >
                   <Keyboard className="w-3.5 h-3.5 mr-1.5" />
                   Manual
@@ -206,17 +242,33 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
                     "relative z-10 flex h-8 items-center justify-center rounded-full text-xs font-medium transition-colors",
                     serialEntryMode === "scan" ? "text-foreground" : "text-muted-foreground"
                   )}
-                  onClick={() => {
-                    setSerialEntryMode("scan");
-                    setScanTarget("serial_number");
-                  }}
+                  onClick={() => handleSerialEntryModeChange("scan")}
                 >
                   <ScanLine className="w-3.5 h-3.5 mr-1.5" />
                   Scan
                 </button>
+                <button
+                  type="button"
+                  aria-pressed={serialEntryMode === "na"}
+                  className={cn(
+                    "relative z-10 flex h-8 items-center justify-center rounded-full text-xs font-medium transition-colors",
+                    serialEntryMode === "na" ? "text-foreground" : "text-muted-foreground"
+                  )}
+                  onClick={() => handleSerialEntryModeChange("na")}
+                >
+                  <Ban className="w-3.5 h-3.5 mr-1.5" />
+                  N/A
+                </button>
               </div>
             </div>
-            {serialEntryMode === "manual" ? (
+            {serialEntryMode === "na" ? (
+              <Input
+                required
+                readOnly
+                value={SERIAL_NOT_APPLICABLE}
+                aria-label="Serial number not applicable"
+              />
+            ) : serialEntryMode === "manual" ? (
               <Input
                 required
                 value={form.serial_number}
