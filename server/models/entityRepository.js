@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { HttpError } from "../utils/httpError.js";
 
 const NON_UNIQUE_SERIAL_VALUES = new Set(["n/a", "na", "not applicable"]);
+const DEVICE_ASSET_TAG_PREFIX = "DEV-";
+const DEVICE_ASSET_TAG_ATTEMPTS = 25;
 const EMPLOYEE_ID_PREFIX = "EMP-";
 const EMPLOYEE_ID_ATTEMPTS = 25;
 
@@ -9,7 +11,7 @@ const schemas = {
   Device: {
     dbName: "devices",
     fields: ["asset_tag", "device_name", "brand", "model", "serial_number", "category", "status", "notes"],
-    required: ["asset_tag", "device_name", "brand", "model", "serial_number", "status"],
+    required: ["device_name", "brand", "model", "serial_number", "status"],
     defaults: { status: "Available" },
     unique: ["asset_tag", "serial_number"],
     statuses: ["Available", "Assigned", "Maintenance"],
@@ -76,6 +78,10 @@ function shouldSkipUniqueCheck(field, value) {
 }
 
 function normalizeEmployeeId(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function normalizeAssetTag(value) {
   return String(value || "").trim().toUpperCase();
 }
 
@@ -150,6 +156,10 @@ export class EntityRepository {
       return this.createEmployee(payload, user);
     }
 
+    if (this.entityName === "Device") {
+      return this.createDevice(payload, user);
+    }
+
     const now = new Date().toISOString();
     const data = await this.prepareForSave({
       ...this.schema.defaults,
@@ -212,7 +222,22 @@ export class EntityRepository {
 
   async prepareForSave(data) {
     if (this.entityName !== "Employee") {
-      return data;
+      if (this.entityName !== "Device") {
+        return data;
+      }
+
+      const assetTag = normalizeAssetTag(data.asset_tag);
+      if (assetTag) {
+        return {
+          ...data,
+          asset_tag: assetTag,
+        };
+      }
+
+      return {
+        ...data,
+        asset_tag: await this.generateDeviceAssetTag(),
+      };
     }
 
     if (String(data.employee_id || "").trim()) {
@@ -243,6 +268,50 @@ export class EntityRepository {
     }
 
     throw new HttpError(500, "Unable to generate a unique employee ID");
+  }
+
+  async generateDeviceAssetTag() {
+    const docs = await this.couch.allDocs(this.dbName);
+    const usedTags = new Set();
+
+    for (const doc of docs) {
+      const assetTag = normalizeAssetTag(doc.asset_tag);
+      if (assetTag) {
+        usedTags.add(assetTag);
+      }
+    }
+
+    for (let attempt = 0; attempt < DEVICE_ASSET_TAG_ATTEMPTS; attempt += 1) {
+      const candidate = `${DEVICE_ASSET_TAG_PREFIX}${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+      if (!usedTags.has(candidate)) {
+        return candidate;
+      }
+    }
+
+    throw new HttpError(500, "Unable to generate a unique device asset tag");
+  }
+
+  async createDevice(payload, user) {
+    const now = new Date().toISOString();
+    const data = await this.prepareForSave({
+      ...this.schema.defaults,
+      ...compactPayload(payload, this.schema.fields),
+    });
+
+    await this.validate(data);
+    await this.assertUnique(data);
+
+    const doc = {
+      _id: crypto.randomUUID(),
+      ...data,
+      created_at: now,
+      updated_at: now,
+      created_by: user?.username || null,
+      updated_by: user?.username || null,
+    };
+
+    const saved = await this.couch.putDoc(this.dbName, doc);
+    return toClientDoc(saved, this.schema.fields);
   }
 
   async createEmployee(payload, user) {

@@ -11,12 +11,17 @@ import { format } from "date-fns";
 export default function AssignDeviceDialog({ open, onClose, onAssign, employees, devices }) {
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedDevices, setSelectedDevices] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [branch, setBranch] = useState("");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const availableDevices = devices.filter(d => d.status === "Available");
+  const deviceCategories = [...new Set(devices.map((device) => device.category).filter(Boolean))].sort();
+  const filteredDevices = selectedCategory === "all"
+    ? availableDevices
+    : availableDevices.filter((device) => device.category === selectedCategory);
 
   const toggleDevice = (deviceId) => {
     setSelectedDevices(prev => 
@@ -29,6 +34,7 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
   const resetForm = () => {
     setSelectedEmployee("");
     setSelectedDevices([]);
+    setSelectedCategory("all");
     setBranch("");
     setNotes("");
     setFormError("");
@@ -118,12 +124,29 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
           </div>
 
           <div className="space-y-2">
+            <Label>Device Category Filter</Label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {deviceCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label>Select Devices ({selectedDevices.length} selected)</Label>
             <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-3 space-y-2">
-              {availableDevices.length === 0 ? (
+              {filteredDevices.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No available devices</p>
               ) : (
-                availableDevices.map(device => (
+                filteredDevices.map(device => (
                   <label
                     key={device.id}
                     className="flex items-center gap-3 p-2 rounded-md hover:bg-muted cursor-pointer"
