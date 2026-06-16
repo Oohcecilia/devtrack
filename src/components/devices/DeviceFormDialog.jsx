@@ -12,7 +12,6 @@ import InlineScannerModal from "./InlineScannerModal";
 import CategorySelect from "./CategorySelect";
 
 const emptyDevice = {
-  asset_tag: "",
   device_name: "",
   brand: "",
   model: "",
@@ -55,7 +54,7 @@ function isDeviceInfoResult(value) {
 
 export default function DeviceFormDialog({ open, onClose, onSave, device }) {
   const [form, setForm] = useState(emptyDevice);
-  const [scanTarget, setScanTarget] = useState(null); // "asset_tag" | "serial_number"
+  const [scanTarget, setScanTarget] = useState(null);
   const [serialEntryMode, setSerialEntryMode] = useState("manual");
   const [scanLookupLoading, setScanLookupLoading] = useState(false);
   const [scanLookupError, setScanLookupError] = useState("");
@@ -169,17 +168,6 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Asset Tag</Label>
-              <div className="flex gap-2">
-                <Input
-                  required
-                  value={form.asset_tag}
-                  onChange={(e) => setForm({ ...form, asset_tag: e.target.value })}
-                  placeholder="e.g. AST-001"
-                />
-              </div>
-            </div>
             <div className="space-y-2">
               <Label>Device Name</Label>
               <Input
@@ -332,7 +320,7 @@ export default function DeviceFormDialog({ open, onClose, onSave, device }) {
           <InlineScannerModal
             open={!!scanTarget}
             onClose={() => setScanTarget(null)}
-            label={scanTarget === "asset_tag" ? "Asset Tag" : "Serial Number"}
+            label="Serial Number"
             onCapture={handleScanCapture}
           />
           <DialogFooter>

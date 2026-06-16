@@ -9,7 +9,7 @@ export default function DeviceTable({ devices, onEdit, onDelete }) {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">
-            <TableHead className="font-semibold">Asset Tag</TableHead>
+            <TableHead className="font-semibold">Record ID</TableHead>
             <TableHead className="font-semibold">Device Name</TableHead>
             <TableHead className="font-semibold hidden md:table-cell">Brand</TableHead>
             <TableHead className="font-semibold hidden md:table-cell">Model</TableHead>
@@ -21,7 +21,7 @@ export default function DeviceTable({ devices, onEdit, onDelete }) {
         <TableBody>
           {devices.map((device) => (
             <TableRow key={device.id} className="group">
-              <TableCell className="font-mono text-sm font-medium">{device.asset_tag}</TableCell>
+              <TableCell className="font-mono text-sm font-medium">{device.id}</TableCell>
               <TableCell className="font-medium">{device.device_name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground">{device.brand}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground">{device.model}</TableCell>
