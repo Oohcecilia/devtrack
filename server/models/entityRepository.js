@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { HttpError } from "../utils/httpError.js";
 
 const NON_UNIQUE_SERIAL_VALUES = new Set(["n/a", "na", "not applicable"]);
+const EMPLOYEE_ID_PREFIX = "EMP-";
+const EMPLOYEE_ID_ATTEMPTS = 25;
 
 const schemas = {
   Device: {
@@ -73,6 +75,14 @@ function shouldSkipUniqueCheck(field, value) {
   return field === "serial_number" && NON_UNIQUE_SERIAL_VALUES.has(String(value).trim().toLowerCase());
 }
 
+function normalizeEmployeeId(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isRetryableConflict(error) {
+  return error?.status === 409;
+}
+
 export function getEntitySchemas() {
   return schemas;
 }
@@ -95,6 +105,10 @@ export class EntityRepository {
     await this.couch.createIndex(this.dbName, ["updated_at"], `${this.schema.dbName}-updated-at`);
     for (const field of this.schema.unique) {
       await this.couch.createIndex(this.dbName, [field], `${this.schema.dbName}-${field}`);
+    }
+
+    if (this.entityName === "Employee") {
+      await this.ensureEmployeeIdentifiers();
     }
   }
 
@@ -132,6 +146,10 @@ export class EntityRepository {
   }
 
   async create(payload, user) {
+    if (this.entityName === "Employee") {
+      return this.createEmployee(payload, user);
+    }
+
     const now = new Date().toISOString();
     const data = await this.prepareForSave({
       ...this.schema.defaults,
@@ -155,6 +173,10 @@ export class EntityRepository {
   }
 
   async update(id, payload, user) {
+    if (this.entityName === "Employee") {
+      return this.updateEmployee(id, payload, user);
+    }
+
     const existing = await this.couch.getDoc(this.dbName, id);
     const next = await this.prepareForSave({
       ...existing,
@@ -205,20 +227,107 @@ export class EntityRepository {
 
   async generateEmployeeId() {
     const docs = await this.couch.allDocs(this.dbName);
-    const usedIds = new Set(
-      docs
-        .map((doc) => String(doc.employee_id || "").trim().toLowerCase())
-        .filter(Boolean),
-    );
+    const usedIds = new Set();
+    for (const doc of docs) {
+      const employeeId = normalizeEmployeeId(doc.employee_id);
+      if (employeeId) {
+        usedIds.add(employeeId);
+      }
+    }
 
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const candidate = `EMP-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-      if (!usedIds.has(candidate.toLowerCase())) {
+    for (let attempt = 0; attempt < EMPLOYEE_ID_ATTEMPTS; attempt += 1) {
+      const candidate = `${EMPLOYEE_ID_PREFIX}${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+      if (!usedIds.has(candidate)) {
         return candidate;
       }
     }
 
-    return `EMP-${Date.now().toString(36).toUpperCase()}`;
+    throw new HttpError(500, "Unable to generate a unique employee ID");
+  }
+
+  async createEmployee(payload, user) {
+    const now = new Date().toISOString();
+    const data = {
+      ...this.schema.defaults,
+      ...compactPayload(payload, this.schema.fields),
+    };
+    delete data.employee_id;
+
+    await this.validate(data);
+
+    for (let attempt = 0; attempt < EMPLOYEE_ID_ATTEMPTS; attempt += 1) {
+      const employeeId = await this.generateEmployeeId();
+      const doc = {
+        _id: employeeId,
+        employee_id: employeeId,
+        ...data,
+        created_at: now,
+        updated_at: now,
+        created_by: user?.username || null,
+        updated_by: user?.username || null,
+      };
+
+      try {
+        const saved = await this.couch.putDoc(this.dbName, doc);
+        return toClientDoc(saved, this.schema.fields);
+      } catch (error) {
+        if (!isRetryableConflict(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new HttpError(500, "Unable to create a unique employee record");
+  }
+
+  async updateEmployee(id, payload, user) {
+    const existing = await this.couch.getDoc(this.dbName, id);
+    const next = {
+      ...existing,
+      ...compactPayload(payload, this.schema.fields),
+      employee_id: normalizeEmployeeId(existing.employee_id) || normalizeEmployeeId(existing._id),
+      updated_at: new Date().toISOString(),
+      updated_by: user?.username || existing.updated_by || null,
+    };
+
+    await this.validate(next);
+    const saved = await this.couch.putDoc(this.dbName, next);
+    return toClientDoc(saved, this.schema.fields);
+  }
+
+  async ensureEmployeeIdentifiers() {
+    const docs = await this.couch.allDocs(this.dbName);
+    const usedIds = new Set(
+      docs
+        .map((doc) => normalizeEmployeeId(doc.employee_id))
+        .filter(Boolean),
+    );
+
+    for (const doc of docs) {
+      if (normalizeEmployeeId(doc.employee_id)) {
+        continue;
+      }
+
+      let employeeId = "";
+      for (let attempt = 0; attempt < EMPLOYEE_ID_ATTEMPTS; attempt += 1) {
+        const candidate = `${EMPLOYEE_ID_PREFIX}${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+        if (!usedIds.has(candidate)) {
+          employeeId = candidate;
+          usedIds.add(candidate);
+          break;
+        }
+      }
+
+      if (!employeeId) {
+        throw new HttpError(500, "Unable to backfill employee IDs");
+      }
+
+      await this.couch.putDoc(this.dbName, {
+        ...doc,
+        employee_id: employeeId,
+        updated_at: new Date().toISOString(),
+      });
+    }
   }
 
   async assertUnique(data, currentId = null) {

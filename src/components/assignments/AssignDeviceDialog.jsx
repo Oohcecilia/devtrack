@@ -101,7 +101,7 @@ export default function AssignDeviceDialog({ open, onClose, onAssign, employees,
               <SelectContent>
                 {employees.map(emp => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    {emp.full_name}{emp.employee_id ? ` (${emp.employee_id})` : ""}
+                    {emp.full_name}
                   </SelectItem>
                 ))}
               </SelectContent>

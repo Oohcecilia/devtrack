@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const emptyEmployee = {
-  employee_id: "",
   full_name: "",
   department: "",
   position: "",
@@ -34,19 +33,11 @@ export default function EmployeeFormDialog({ open, onClose, onSave, employee, sa
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Employee" : "Add New Employee"}</DialogTitle>
           <DialogDescription className="sr-only">
-            Enter the employee name and department. Employee ID and position are optional.
+            Enter the employee name and department. Employee ID is generated automatically.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Employee ID</Label>
-              <Input
-                value={form.employee_id}
-                onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-                placeholder="Auto-generated if blank"
-              />
-            </div>
             <div className="space-y-2">
               <Label>Name</Label>
               <Input
