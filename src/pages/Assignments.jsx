@@ -8,6 +8,7 @@ import { Plus, Search, ArrowLeftRight } from "lucide-react";
 import AssignmentTable from "@/components/assignments/AssignmentTable";
 import AssignDeviceDialog from "@/components/assignments/AssignDeviceDialog";
 import EmptyState from "@/components/shared/EmptyState";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -17,6 +18,7 @@ function errorMessage(error, fallback) {
 
 export default function Assignments() {
   const [showAssign, setShowAssign] = useState(false);
+  const [deletingAssignment, setDeletingAssignment] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
@@ -49,6 +51,11 @@ export default function Assignments() {
   const updateDevice = useMutation({
     mutationFn: ({ id, data }) => couchdb.entities.Device.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices"] }),
+  });
+
+  const deleteAssignment = useMutation({
+    mutationFn: (id) => couchdb.entities.Assignment.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assignments"] }),
   });
 
   const handleAssign = async (assignmentsList, deviceIds) => {
@@ -97,6 +104,34 @@ export default function Assignments() {
       toast.success("Device returned successfully");
     } catch (error) {
       toast.error(errorMessage(error, "Unable to return device"));
+    }
+  };
+
+  const handleDelete = (assignment) => {
+    setDeletingAssignment(assignment);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingAssignment) {
+      return;
+    }
+
+    const assignment = deletingAssignment;
+
+    try {
+      if (assignment.status === "Active") {
+        const device = devices.find((d) => d.id === assignment.device_id || d.asset_tag === assignment.asset_tag);
+        if (device) {
+          await updateDevice.mutateAsync({ id: device.id, data: { status: "Available" } });
+        }
+      }
+
+      await deleteAssignment.mutateAsync(assignment.id);
+      toast.success("Assignment deleted successfully");
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to delete assignment"));
+    } finally {
+      setDeletingAssignment(null);
     }
   };
 
@@ -174,6 +209,7 @@ export default function Assignments() {
           assignments={filtered}
           onReturn={handleReturn}
           onGenerateLetter={handleGenerateLetter}
+          onDelete={handleDelete}
         />
       )}
 
@@ -184,6 +220,23 @@ export default function Assignments() {
         employees={employees}
         devices={devices}
       />
+
+      <AlertDialog open={!!deletingAssignment} onOpenChange={() => setDeletingAssignment(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Assignment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the assignment for &quot;{deletingAssignment?.device_name}&quot; assigned to &quot;{deletingAssignment?.employee_name}&quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

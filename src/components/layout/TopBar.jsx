@@ -35,7 +35,7 @@ export default function TopBar({ onMenuClick, title }) {
       </div>
       <div className="shrink-0 flex items-center gap-1 sm:gap-2">
         {user?.username && (
-          <span className="hidden sm:inline text-sm font-medium text-muted-foreground">
+          <span className="hidden sm:inline text-sm font-medium text-muted-foreground capitalize">
             {user.username}
           </span>
         )}
