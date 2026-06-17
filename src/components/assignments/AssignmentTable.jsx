@@ -1,10 +1,10 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, FileDown, Trash2 } from "lucide-react";
+import { RotateCcw, FileDown, Pencil, Trash2 } from "lucide-react";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
 
-export default function AssignmentTable({ assignments, onReturn, onGenerateLetter, onDelete }) {
+export default function AssignmentTable({ assignments, onReturn, onGenerateLetter, onEdit, onDelete }) {
   return (
     <div className="rounded-xl border border-border overflow-hidden bg-card">
       <Table>
@@ -43,6 +43,9 @@ export default function AssignmentTable({ assignments, onReturn, onGenerateLette
                   )}
                   <Button variant="ghost" size="icon" className="h-8 w-8" title="Generate Letter" onClick={() => onGenerateLetter(a)}>
                     <FileDown className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Update Assignment" onClick={() => onEdit(a)}>
+                    <Pencil className="w-4 h-4" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" title="Delete Assignment" onClick={() => onDelete(a)}>
                     <Trash2 className="w-4 h-4" />

@@ -7,11 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Monitor } from "lucide-react";
 import DeviceTable from "@/components/devices/DeviceTable";
 import DeviceFormDialog from "@/components/devices/DeviceFormDialog";
+import DeviceDetailsDialog from "@/components/devices/DeviceDetailsDialog";
 import EmptyState from "@/components/shared/EmptyState";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function Devices() {
   const [showForm, setShowForm] = useState(false);
+  const [viewingDevice, setViewingDevice] = useState(null);
   const [editingDevice, setEditingDevice] = useState(null);
   const [deletingDevice, setDeletingDevice] = useState(null);
   const [search, setSearch] = useState("");
@@ -53,6 +55,10 @@ export default function Devices() {
     setShowForm(true);
   };
 
+  const handleView = (device) => {
+    setViewingDevice(device);
+  };
+
   const handleDelete = (device) => {
     setDeletingDevice(device);
   };
@@ -80,46 +86,48 @@ export default function Devices() {
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search devices..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue placeholder="Filter status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Available">Available</SelectItem>
-              <SelectItem value="Assigned">Assigned</SelectItem>
-              <SelectItem value="Maintenance">Maintenance</SelectItem>
-            </SelectContent>
-          </Select>
-          {categories.length > 0 && (
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+      <div className="sticky top-0 z-20 -mx-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:w-auto">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search devices..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Filter category" />
+                <SelectValue placeholder="Filter status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Available">Available</SelectItem>
+                <SelectItem value="Assigned">Assigned</SelectItem>
+                <SelectItem value="Maintenance">Maintenance</SelectItem>
               </SelectContent>
             </Select>
-          )}
+            {categories.length > 0 && (
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Filter category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <Button className="w-full sm:w-auto" onClick={() => { setEditingDevice(null); setShowForm(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Device
+          </Button>
         </div>
-	        <Button className="w-full sm:w-auto" onClick={() => { setEditingDevice(null); setShowForm(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Device
-        </Button>
       </div>
 
       {isLoading ? (
@@ -138,7 +146,7 @@ export default function Devices() {
           )}
         />
       ) : (
-        <DeviceTable devices={filtered} onEdit={handleEdit} onDelete={handleDelete} />
+        <DeviceTable devices={filtered} onView={handleView} onEdit={handleEdit} onDelete={handleDelete} />
       )}
 
       <DeviceFormDialog
@@ -146,6 +154,12 @@ export default function Devices() {
         onClose={() => { setShowForm(false); setEditingDevice(null); }}
         onSave={handleSave}
         device={editingDevice}
+      />
+
+      <DeviceDetailsDialog
+        open={!!viewingDevice}
+        onClose={() => setViewingDevice(null)}
+        device={viewingDevice}
       />
 
       <AlertDialog open={!!deletingDevice} onOpenChange={() => setDeletingDevice(null)}>

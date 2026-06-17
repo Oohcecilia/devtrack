@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, ArrowLeftRight } from "lucide-react";
 import AssignmentTable from "@/components/assignments/AssignmentTable";
 import AssignDeviceDialog from "@/components/assignments/AssignDeviceDialog";
+import AssignmentEditDialog from "@/components/assignments/AssignmentEditDialog";
 import EmptyState from "@/components/shared/EmptyState";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
@@ -18,6 +19,7 @@ function errorMessage(error, fallback) {
 
 export default function Assignments() {
   const [showAssign, setShowAssign] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
   const [deletingAssignment, setDeletingAssignment] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -111,6 +113,30 @@ export default function Assignments() {
     setDeletingAssignment(assignment);
   };
 
+  const handleEdit = (assignment) => {
+    setEditingAssignment(assignment);
+  };
+
+  const handleSaveEdit = async (formData) => {
+    if (!editingAssignment) {
+      return;
+    }
+
+    try {
+      await updateAssignment.mutateAsync({
+        id: editingAssignment.id,
+        data: {
+          branch: formData.branch,
+          notes: formData.notes,
+        },
+      });
+      toast.success("Assignment updated successfully");
+      setEditingAssignment(null);
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to update assignment"));
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deletingAssignment) {
       return;
@@ -161,32 +187,34 @@ export default function Assignments() {
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search assignments..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+      <div className="sticky top-0 z-20 -mx-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:w-auto">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search assignments..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Filter status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Returned">Returned</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue placeholder="Filter status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Returned">Returned</SelectItem>
-            </SelectContent>
-          </Select>
+          <Button className="w-full sm:w-auto" onClick={() => setShowAssign(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Assign Devices
+          </Button>
         </div>
-        <Button className="w-full sm:w-auto" onClick={() => setShowAssign(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Assign Devices
-        </Button>
       </div>
 
       {isLoading ? (
@@ -209,6 +237,7 @@ export default function Assignments() {
           assignments={filtered}
           onReturn={handleReturn}
           onGenerateLetter={handleGenerateLetter}
+          onEdit={handleEdit}
           onDelete={handleDelete}
         />
       )}
@@ -219,6 +248,14 @@ export default function Assignments() {
         onAssign={handleAssign}
         employees={employees}
         devices={devices}
+      />
+
+      <AssignmentEditDialog
+        open={!!editingAssignment}
+        onClose={() => setEditingAssignment(null)}
+        onSave={handleSaveEdit}
+        assignment={editingAssignment}
+        saving={updateAssignment.isPending}
       />
 
       <AlertDialog open={!!deletingAssignment} onOpenChange={() => setDeletingAssignment(null)}>

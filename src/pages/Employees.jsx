@@ -75,20 +75,22 @@ export default function Employees() {
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search employees..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      <div className="sticky top-0 z-20 -mx-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search employees..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button className="w-full sm:w-auto" onClick={() => { setEditingEmployee(null); setFormError(""); setShowForm(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Employee
+          </Button>
         </div>
-        <Button className="w-full sm:w-auto" onClick={() => { setEditingEmployee(null); setFormError(""); setShowForm(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Employee
-        </Button>
       </div>
 
       {isLoading ? (

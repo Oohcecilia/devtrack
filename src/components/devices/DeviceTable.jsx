@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Pencil, Trash2 } from "lucide-react";
 import StatusBadge from "@/components/shared/StatusBadge";
 
-export default function DeviceTable({ devices, onEdit, onDelete }) {
+export default function DeviceTable({ devices, onView, onEdit, onDelete }) {
   return (
     <div className="rounded-xl border border-border overflow-hidden bg-card">
       <Table>
@@ -20,7 +20,19 @@ export default function DeviceTable({ devices, onEdit, onDelete }) {
         </TableHeader>
         <TableBody>
           {devices.map((device) => (
-            <TableRow key={device.id} className="group">
+            <TableRow
+              key={device.id}
+              className="group cursor-pointer"
+              tabIndex={0}
+              role="button"
+              onClick={() => onView?.(device)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onView?.(device);
+                }
+              }}
+            >
               <TableCell className="font-mono text-sm font-medium">{device.id}</TableCell>
               <TableCell className="font-medium">{device.device_name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground">{device.brand}</TableCell>
@@ -29,10 +41,10 @@ export default function DeviceTable({ devices, onEdit, onDelete }) {
               <TableCell><StatusBadge status={device.status} /></TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(device)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(event) => { event.stopPropagation(); onEdit(device); }}>
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(device)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(event) => { event.stopPropagation(); onDelete(device); }}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
