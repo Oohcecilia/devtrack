@@ -17,6 +17,54 @@ function errorMessage(error, fallback) {
   return error?.message || fallback;
 }
 
+function getAssignmentGroupKey(assignment) {
+  return assignment.employee_id || assignment.employee_name || assignment.id;
+}
+
+function groupAssignments(assignments) {
+  const grouped = new Map();
+
+  for (const assignment of assignments) {
+    const key = getAssignmentGroupKey(assignment);
+    const existing = grouped.get(key);
+
+    if (existing) {
+      existing.assignments.push(assignment);
+      continue;
+    }
+
+    grouped.set(key, {
+      id: key,
+      employee_id: assignment.employee_id,
+      employee_name: assignment.employee_name,
+      branch: assignment.branch || "",
+      assignments: [assignment],
+    });
+  }
+
+  return Array.from(grouped.values())
+    .map((group) => {
+      const sortedAssignments = [...group.assignments].sort((left, right) =>
+        String(right.assigned_date || "").localeCompare(String(left.assigned_date || ""))
+      );
+      const activeAssignments = sortedAssignments.filter((assignment) => assignment.status === "Active");
+      const returnedAssignments = sortedAssignments.filter((assignment) => assignment.status === "Returned");
+      const distinctBranches = [...new Set(sortedAssignments.map((assignment) => assignment.branch).filter(Boolean))];
+
+      return {
+        ...group,
+        assignments: sortedAssignments,
+        device_count: sortedAssignments.length,
+        active_count: activeAssignments.length,
+        returned_count: returnedAssignments.length,
+        status: activeAssignments.length > 0 ? "Active" : "Returned",
+        branch: distinctBranches.length === 1 ? distinctBranches[0] : distinctBranches.length > 1 ? "Multiple" : "",
+        last_assigned_date: sortedAssignments[0]?.assigned_date || "",
+      };
+    })
+    .sort((left, right) => left.employee_name.localeCompare(right.employee_name));
+}
+
 export default function Assignments() {
   const [showAssign, setShowAssign] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
@@ -88,49 +136,52 @@ export default function Assignments() {
     }
   };
 
-  const handleReturn = async (assignment) => {
+  const handleReturnAssignments = async (assignmentsToReturn) => {
     try {
-      if (assignment.status === "Returned") {
-        toast.info("Device has already been returned");
+      const activeAssignments = assignmentsToReturn.filter((assignment) => assignment.status === "Active");
+
+      if (activeAssignments.length === 0) {
+        toast.info("No active devices selected for return");
         return;
       }
 
-      await updateAssignment.mutateAsync({
-        id: assignment.id,
-        data: { status: "Returned", returned_date: format(new Date(), "yyyy-MM-dd") },
-      });
-      const device = devices.find(d => d.asset_tag === assignment.asset_tag);
-      if (device) {
-        await updateDevice.mutateAsync({ id: device.id, data: { status: "Available" } });
+      for (const assignment of activeAssignments) {
+        await updateAssignment.mutateAsync({
+          id: assignment.id,
+          data: { status: "Returned", returned_date: format(new Date(), "yyyy-MM-dd") },
+        });
+
+        const device = devices.find((item) => item.id === assignment.device_id || item.asset_tag === assignment.asset_tag);
+        if (device) {
+          await updateDevice.mutateAsync({ id: device.id, data: { status: "Available" } });
+        }
       }
-      toast.success("Device returned successfully");
+
+      toast.success(`${activeAssignments.length} device(s) returned successfully`);
     } catch (error) {
-      toast.error(errorMessage(error, "Unable to return device"));
+      toast.error(errorMessage(error, "Unable to return selected device(s)"));
     }
   };
 
-  const handleDelete = (assignment) => {
-    setDeletingAssignment(assignment);
+  const handleDelete = (assignmentGroup) => {
+    setDeletingAssignment(assignmentGroup);
   };
 
-  const handleEdit = (assignment) => {
-    setEditingAssignment(assignment);
+  const handleEdit = (assignmentGroup) => {
+    setEditingAssignment(assignmentGroup);
   };
 
-  const handleSaveEdit = async (formData) => {
+  const handleSaveEdit = async (selectedAssignmentIds) => {
     if (!editingAssignment) {
       return;
     }
 
     try {
-      await updateAssignment.mutateAsync({
-        id: editingAssignment.id,
-        data: {
-          branch: formData.branch,
-          notes: formData.notes,
-        },
-      });
-      toast.success("Assignment updated successfully");
+      const assignmentsToReturn = editingAssignment.assignments.filter((assignment) =>
+        selectedAssignmentIds.includes(assignment.id)
+      );
+
+      await handleReturnAssignments(assignmentsToReturn);
       setEditingAssignment(null);
     } catch (error) {
       toast.error(errorMessage(error, "Unable to update assignment"));
@@ -142,18 +193,21 @@ export default function Assignments() {
       return;
     }
 
-    const assignment = deletingAssignment;
+    const assignmentGroup = deletingAssignment;
 
     try {
-      if (assignment.status === "Active") {
-        const device = devices.find((d) => d.id === assignment.device_id || d.asset_tag === assignment.asset_tag);
-        if (device) {
-          await updateDevice.mutateAsync({ id: device.id, data: { status: "Available" } });
+      for (const assignment of assignmentGroup.assignments) {
+        if (assignment.status === "Active") {
+          const device = devices.find((d) => d.id === assignment.device_id || d.asset_tag === assignment.asset_tag);
+          if (device) {
+            await updateDevice.mutateAsync({ id: device.id, data: { status: "Available" } });
+          }
         }
+
+        await deleteAssignment.mutateAsync(assignment.id);
       }
 
-      await deleteAssignment.mutateAsync(assignment.id);
-      toast.success("Assignment deleted successfully");
+      toast.success("Assignments deleted successfully");
     } catch (error) {
       toast.error(errorMessage(error, "Unable to delete assignment"));
     } finally {
@@ -161,12 +215,11 @@ export default function Assignments() {
     }
   };
 
-  const handleGenerateLetter = async (assignment) => {
+  const handleGenerateLetter = async (assignmentGroup) => {
     try {
-      const employee = employees.find(e => e.employee_id === assignment.employee_id || e.id === assignment.employee_id);
-      const empAssignments = assignments.filter(
-        a => a.employee_id === assignment.employee_id && a.status === "Active"
-      );
+      const assignment = assignmentGroup.assignments[0];
+      const employee = employees.find(e => e.employee_id === assignmentGroup.employee_id || e.id === assignmentGroup.employee_id);
+      const empAssignments = assignmentGroup.assignments.filter((item) => item.status === "Active");
       const { generateAcknowledgementPDF } = await import("@/lib/pdfUtils");
       generateAcknowledgementPDF(assignment, employee, empAssignments);
       toast.success("Acknowledgement letter downloaded");
@@ -184,6 +237,7 @@ export default function Assignments() {
     const matchStatus = statusFilter === "all" || a.status === statusFilter;
     return matchSearch && matchStatus;
   });
+  const groupedAssignments = groupAssignments(filtered);
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
@@ -221,7 +275,7 @@ export default function Assignments() {
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : groupedAssignments.length === 0 ? (
         <EmptyState
           icon={ArrowLeftRight}
           title={assignments.length === 0 ? "No assignments yet" : "No matching assignments"}
@@ -234,8 +288,7 @@ export default function Assignments() {
         />
       ) : (
         <AssignmentTable
-          assignments={filtered}
-          onReturn={handleReturn}
+          assignments={groupedAssignments}
           onGenerateLetter={handleGenerateLetter}
           onEdit={handleEdit}
           onDelete={handleDelete}
@@ -253,8 +306,8 @@ export default function Assignments() {
       <AssignmentEditDialog
         open={!!editingAssignment}
         onClose={() => setEditingAssignment(null)}
-        onSave={handleSaveEdit}
-        assignment={editingAssignment}
+        onReturnSelected={handleSaveEdit}
+        assignmentGroup={editingAssignment}
         saving={updateAssignment.isPending}
       />
 
@@ -263,7 +316,7 @@ export default function Assignments() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Assignment</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the assignment for &quot;{deletingAssignment?.device_name}&quot; assigned to &quot;{deletingAssignment?.employee_name}&quot;? This action cannot be undone.
+              Are you sure you want to delete all assignments for &quot;{deletingAssignment?.employee_name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
