@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import StatusBadge from "@/components/shared/StatusBadge";
 
 function sortAssignments(items) {
@@ -19,15 +20,13 @@ export default function AssignmentEditDialog({ open, onClose, onReturnSelected, 
     () => sortAssignments(assignmentGroup?.assignments || []),
     [assignmentGroup]
   );
-  const activeAssignmentIds = useMemo(
-    () => assignments.filter((assignment) => assignment.status === "Active").map((assignment) => assignment.id),
-    [assignments]
-  );
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState([]);
+  const [branch, setBranch] = useState("");
 
   useEffect(() => {
-    setSelectedAssignmentIds(activeAssignmentIds);
-  }, [activeAssignmentIds, open]);
+    setSelectedAssignmentIds([]);
+    setBranch(assignmentGroup?.branch || "");
+  }, [assignmentGroup, open]);
 
   const toggleAssignment = (assignmentId) => {
     setSelectedAssignmentIds((prev) =>
@@ -38,10 +37,10 @@ export default function AssignmentEditDialog({ open, onClose, onReturnSelected, 
   };
 
   const handleReturn = async () => {
-    if (!selectedAssignmentIds.length) {
-      return;
-    }
-    await onReturnSelected(selectedAssignmentIds);
+    await onReturnSelected({
+      selectedAssignmentIds,
+      branch: branch.trim(),
+    });
   };
 
   const activeSelectedCount = selectedAssignmentIds.length;
@@ -61,7 +60,12 @@ export default function AssignmentEditDialog({ open, onClose, onReturnSelected, 
             </div>
             <div className="space-y-1">
               <p className="text-xs font-medium uppercase text-muted-foreground">Branch</p>
-              <p className="text-sm">{assignmentGroup?.branch || "—"}</p>
+              <Input
+                value={branch}
+                onChange={(event) => setBranch(event.target.value)}
+                placeholder="e.g. Main Office"
+                disabled={saving}
+              />
             </div>
             <div className="space-y-1">
               <p className="text-xs font-medium uppercase text-muted-foreground">Devices</p>
@@ -125,8 +129,8 @@ export default function AssignmentEditDialog({ open, onClose, onReturnSelected, 
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Back to Table</Button>
-          <Button type="button" onClick={handleReturn} disabled={saving || activeSelectedCount === 0}>
-            {saving ? "Returning..." : `Return Selected${activeSelectedCount ? ` (${activeSelectedCount})` : ""}`}
+          <Button type="button" onClick={handleReturn} disabled={saving}>
+            {saving ? "Saving..." : `Return Selected${activeSelectedCount ? ` (${activeSelectedCount})` : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>

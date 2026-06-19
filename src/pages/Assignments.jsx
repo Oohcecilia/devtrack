@@ -171,17 +171,32 @@ export default function Assignments() {
     setEditingAssignment(assignmentGroup);
   };
 
-  const handleSaveEdit = async (selectedAssignmentIds) => {
+  const handleSaveEdit = async ({ selectedAssignmentIds, branch }) => {
     if (!editingAssignment) {
       return;
     }
 
     try {
+      const nextBranch = branch.trim();
+      const assignmentsNeedingBranchUpdate = editingAssignment.assignments.filter(
+        (assignment) => (assignment.branch || "") !== nextBranch
+      );
+
+      for (const assignment of assignmentsNeedingBranchUpdate) {
+        await updateAssignment.mutateAsync({
+          id: assignment.id,
+          data: { branch: nextBranch },
+        });
+      }
+
       const assignmentsToReturn = editingAssignment.assignments.filter((assignment) =>
         selectedAssignmentIds.includes(assignment.id)
       );
 
       await handleReturnAssignments(assignmentsToReturn);
+      if (assignmentsNeedingBranchUpdate.length > 0 && assignmentsToReturn.length === 0) {
+        toast.success("Assignment branch updated successfully");
+      }
       setEditingAssignment(null);
     } catch (error) {
       toast.error(errorMessage(error, "Unable to update assignment"));
