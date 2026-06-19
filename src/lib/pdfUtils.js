@@ -31,26 +31,94 @@ function getTemplateLines(doc, text, maxWidth) {
     .flatMap((line) => doc.splitTextToSize(line, maxWidth));
 }
 
+function getImageDimensions(doc, dataUrl, maxWidth, maxHeight) {
+  try {
+    const image = doc.getImageProperties(dataUrl);
+    const sourceWidth = Number(image?.width) || maxWidth;
+    const sourceHeight = Number(image?.height) || maxHeight || maxWidth;
+    const scale = maxHeight
+      ? Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight)
+      : maxWidth / sourceWidth;
+
+    return {
+      width: sourceWidth * scale,
+      height: sourceHeight * scale,
+    };
+  } catch {
+    return {
+      width: maxWidth,
+      height: maxHeight || maxWidth,
+    };
+  }
+}
+
 function getReportPageLayout(doc, template, replacements, margin) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const contentWidth = pageWidth - margin * 2;
+  const resolvedHeaderLeft = resolveTemplateText(template?.headerLeft ?? template?.header, replacements);
+  const resolvedHeaderRight = resolveTemplateText(template?.headerRight, replacements);
+  const resolvedFooter = resolveTemplateText(template?.footer, replacements);
   const hasLogo = Boolean(template?.logoDataUrl);
-  const logoSize = hasLogo ? 20 : 0;
-  const headerTextWidth = hasLogo ? contentWidth - logoSize - 8 : contentWidth;
-  const headerLines = getTemplateLines(doc, resolveTemplateText(template?.header, replacements), headerTextWidth);
-  const footerLines = getTemplateLines(doc, resolveTemplateText(template?.footer, replacements), contentWidth);
-  const headerContentHeight = headerLines.length ? headerLines.length * 4 + 6 : 0;
-  const headerHeight = hasLogo || headerLines.length ? Math.max(logoSize, headerContentHeight) + 12 : 0;
+  const logoDisplay = template?.logoDisplay === "full-width" ? "full-width" : "inline";
+  const hasFullWidthLogo = hasLogo && logoDisplay === "full-width";
+  const hasInlineLogo = hasLogo && logoDisplay === "inline";
+  const inlineLogo = hasInlineLogo
+    ? getImageDimensions(doc, template.logoDataUrl, 28, 22)
+    : { width: 0, height: 0 };
+  const fullWidthLogo = hasFullWidthLogo
+    ? getImageDimensions(doc, template.logoDataUrl, contentWidth)
+    : { width: 0, height: 0 };
+  const headerTextX = margin + (hasInlineLogo ? inlineLogo.width + 10 : 0);
+  const headerTextWidth = contentWidth - (hasInlineLogo ? inlineLogo.width + 10 : 0);
+  const hasLeftContent = Boolean(String(resolvedHeaderLeft).trim());
+  const hasRightContent = Boolean(String(resolvedHeaderRight).trim());
+  const headerColumnGap = hasLeftContent && hasRightContent ? 8 : 0;
+  const rightColumnWidth = hasRightContent && hasLeftContent
+    ? Math.min(72, Math.max(48, headerTextWidth * 0.35))
+    : hasRightContent
+      ? headerTextWidth
+      : 0;
+  const leftColumnWidth = hasLeftContent && hasRightContent
+    ? Math.max(48, headerTextWidth - rightColumnWidth - headerColumnGap)
+    : headerTextWidth;
+  const leftHeaderLines = hasLeftContent ? getTemplateLines(doc, resolvedHeaderLeft, leftColumnWidth) : [];
+  const rightHeaderLines = hasRightContent ? getTemplateLines(doc, resolvedHeaderRight, rightColumnWidth) : [];
+  const footerLines = getTemplateLines(doc, resolvedFooter, contentWidth);
+  const leftHeaderHeight = leftHeaderLines.length ? leftHeaderLines.length * 4 + 2 : 0;
+  const rightHeaderHeight = rightHeaderLines.length ? rightHeaderLines.length * 4 + 2 : 0;
+  const headerRowHeight = Math.max(leftHeaderHeight, rightHeaderHeight, hasInlineLogo ? inlineLogo.height : 0);
+  const headerTopPadding = 8;
+  const headerBottomPadding = 8;
+  const headerSectionGap = hasFullWidthLogo && (hasLeftContent || hasRightContent) ? 8 : 0;
+  const headerContentHeight =
+    (hasFullWidthLogo ? fullWidthLogo.height : 0) +
+    headerSectionGap +
+    headerRowHeight;
+  const hasHeaderContent = hasLogo || hasLeftContent || hasRightContent;
+  const headerHeight = hasHeaderContent ? headerTopPadding + headerContentHeight + headerBottomPadding : 0;
   const footerHeight = footerLines.length ? footerLines.length * 4 + 12 : 0;
+  const headerBoxY = 10;
 
   return {
     pageWidth,
     pageHeight,
     contentWidth,
     hasLogo,
-    logoSize,
-    headerLines,
+    logoDisplay,
+    headerBoxY,
+    headerTopPadding,
+    headerBottomPadding,
+    headerTextX,
+    headerTextWidth,
+    headerColumnGap,
+    leftColumnWidth,
+    rightColumnWidth,
+    leftHeaderLines,
+    rightHeaderLines,
+    headerRowHeight,
+    inlineLogo,
+    fullWidthLogo,
     footerLines,
     headerHeight,
     footerHeight,
@@ -71,21 +139,37 @@ function drawReportTemplate(doc, template, reportTitle, generatedAt, margin) {
 
   if (layout.headerHeight > 0) {
     doc.setFillColor(247, 249, 252);
-    doc.roundedRect(margin - 4, 10, layout.pageWidth - (margin - 4) * 2, layout.headerHeight, 4, 4, "F");
+    doc.roundedRect(margin - 4, layout.headerBoxY, layout.pageWidth - (margin - 4) * 2, layout.headerHeight, 4, 4, "F");
   }
 
-  let headerTextX = margin;
-  if (layout.hasLogo) {
+  let headerTop = layout.headerBoxY + layout.headerTopPadding;
+
+  if (layout.hasLogo && layout.logoDisplay === "full-width") {
     try {
       doc.addImage(
         resolvedTemplate.logoDataUrl,
         getImageFormatFromDataUrl(resolvedTemplate.logoDataUrl),
         margin,
-        16,
-        layout.logoSize,
-        layout.logoSize
+        headerTop,
+        layout.fullWidthLogo.width,
+        layout.fullWidthLogo.height
       );
-      headerTextX += layout.logoSize + 8;
+    } catch {
+      // Ignore invalid image payloads and continue rendering text-only headers.
+    }
+    headerTop += layout.fullWidthLogo.height + ((layout.leftHeaderLines.length || layout.rightHeaderLines.length) ? 8 : 0);
+  }
+
+  if (layout.hasLogo && layout.logoDisplay === "inline") {
+    try {
+      doc.addImage(
+        resolvedTemplate.logoDataUrl,
+        getImageFormatFromDataUrl(resolvedTemplate.logoDataUrl),
+        margin,
+        headerTop + Math.max(0, (layout.headerRowHeight - layout.inlineLogo.height) / 2),
+        layout.inlineLogo.width,
+        layout.inlineLogo.height
+      );
     } catch {
       // Ignore invalid image payloads and continue rendering text-only headers.
     }
@@ -95,8 +179,14 @@ function drawReportTemplate(doc, template, reportTitle, generatedAt, margin) {
   doc.setFontSize(9);
   doc.setTextColor(90, 90, 90);
 
-  if (layout.headerLines.length) {
-    doc.text(layout.headerLines, headerTextX, 18);
+  const textBaselineY = headerTop + 4;
+  if (layout.leftHeaderLines.length) {
+    doc.text(layout.leftHeaderLines, layout.headerTextX, textBaselineY);
+  }
+
+  if (layout.rightHeaderLines.length) {
+    const rightColumnX = layout.headerTextX + (layout.leftHeaderLines.length ? layout.leftColumnWidth + layout.headerColumnGap : 0);
+    doc.text(layout.rightHeaderLines, rightColumnX + layout.rightColumnWidth, textBaselineY, { align: "right" });
   }
 
   if (layout.footerLines.length) {

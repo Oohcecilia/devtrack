@@ -61,8 +61,10 @@ export default function Reports() {
     const normalized = {
       ...templateToSave,
       name: templateToSave.name.trim() || "Untitled Template",
-      header: templateToSave.header || "",
+      headerLeft: templateToSave.headerLeft || templateToSave.header || "",
+      headerRight: templateToSave.headerRight || "",
       footer: templateToSave.footer || "",
+      logoDisplay: templateToSave.logoDisplay === "full-width" ? "full-width" : "inline",
     };
 
     const nextTemplates = templates.some((template) => template.id === normalized.id)
@@ -191,7 +193,7 @@ export default function Reports() {
           <div>
             <h3 className="text-base font-semibold">Report Templates</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Create reusable layouts for exported reports by customizing header and footer content.
+              Create reusable layouts for exported reports by customizing header layout, logo placement, and footer content.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -258,13 +260,27 @@ export default function Reports() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Header Content</label>
-              <Textarea
-                value={draftTemplate.header}
-                onChange={(event) => setDraftTemplate({ ...draftTemplate, header: event.target.value })}
-                placeholder={"Company Name\n{{report_title}}\nGenerated: {{generated_at}}"}
-                rows={5}
-              />
+              <label className="text-sm font-medium">Header Layout</label>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Left / Start</label>
+                  <Textarea
+                    value={draftTemplate.headerLeft || ""}
+                    onChange={(event) => setDraftTemplate({ ...draftTemplate, headerLeft: event.target.value })}
+                    placeholder={"Company Name\n{{report_title}}"}
+                    rows={5}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Right / End</label>
+                  <Textarea
+                    value={draftTemplate.headerRight || ""}
+                    onChange={(event) => setDraftTemplate({ ...draftTemplate, headerRight: event.target.value })}
+                    placeholder={"Generated: {{generated_at}}\nPage {{page_number}}"}
+                    rows={5}
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -292,12 +308,31 @@ export default function Reports() {
                   </Button>
                 </div>
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Logo Display</label>
+                <Select
+                  value={draftTemplate.logoDisplay || "inline"}
+                  onValueChange={(value) => setDraftTemplate({ ...draftTemplate, logoDisplay: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose logo layout" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inline">Inline with header</SelectItem>
+                    <SelectItem value="full-width">Full width header image</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="rounded-lg border border-border bg-muted/20 p-4">
                 {draftTemplate.logoDataUrl ? (
                   <img
                     src={draftTemplate.logoDataUrl}
                     alt="Template logo preview"
-                    className="h-20 max-w-full object-contain"
+                    className={
+                      draftTemplate.logoDisplay === "full-width"
+                        ? "h-24 w-full object-contain"
+                        : "h-20 max-w-full object-contain"
+                    }
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">No logo selected for this template.</p>

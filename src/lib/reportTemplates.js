@@ -4,18 +4,24 @@ const ACTIVE_TEMPLATE_STORAGE_KEY = "devtrack_active_report_template";
 const DEFAULT_TEMPLATE = {
   id: "default-template",
   name: "Default Template",
-  header: "",
+  headerLeft: "",
+  headerRight: "",
   footer: "",
   logoDataUrl: "",
+  logoDisplay: "inline",
 };
 
 function normalizeTemplate(template) {
+  const fallbackHeader = String(template?.header || "");
+
   return {
     id: template?.id || crypto.randomUUID(),
     name: String(template?.name || "").trim() || "Untitled Template",
-    header: String(template?.header || ""),
+    headerLeft: String(template?.headerLeft ?? fallbackHeader),
+    headerRight: String(template?.headerRight || ""),
     footer: String(template?.footer || ""),
     logoDataUrl: String(template?.logoDataUrl || ""),
+    logoDisplay: template?.logoDisplay === "full-width" ? "full-width" : "inline",
   };
 }
 
@@ -67,8 +73,10 @@ export function createEmptyReportTemplate() {
   return {
     id: crypto.randomUUID(),
     name: "",
-    header: "",
+    headerLeft: "",
+    headerRight: "",
     footer: "",
     logoDataUrl: "",
+    logoDisplay: "inline",
   };
 }
