@@ -60,16 +60,21 @@ function getReportPageLayout(doc, template, replacements, margin) {
   const resolvedHeaderRight = resolveTemplateText(template?.headerRight, replacements);
   const resolvedFooter = resolveTemplateText(template?.footer, replacements);
   const hasLogo = Boolean(template?.logoDataUrl);
-  const logoDisplay = template?.logoDisplay === "full-width" ? "full-width" : "inline";
+  const logoDisplay = template?.logoDisplay === "full-width"
+    ? "full-width"
+    : template?.logoDisplay === "inline-end"
+      ? "inline-end"
+      : "inline-start";
   const hasFullWidthLogo = hasLogo && logoDisplay === "full-width";
-  const hasInlineLogo = hasLogo && logoDisplay === "inline";
+  const hasInlineLogo = hasLogo && logoDisplay !== "full-width";
+  const hasInlineEndLogo = hasLogo && logoDisplay === "inline-end";
   const inlineLogo = hasInlineLogo
     ? getImageDimensions(doc, template.logoDataUrl, 28, 22)
     : { width: 0, height: 0 };
   const fullWidthLogo = hasFullWidthLogo
     ? getImageDimensions(doc, template.logoDataUrl, contentWidth)
     : { width: 0, height: 0 };
-  const headerTextX = margin + (hasInlineLogo ? inlineLogo.width + 10 : 0);
+  const headerTextX = margin + (hasInlineLogo && !hasInlineEndLogo ? inlineLogo.width + 10 : 0);
   const headerTextWidth = contentWidth - (hasInlineLogo ? inlineLogo.width + 10 : 0);
   const hasLeftContent = Boolean(String(resolvedHeaderLeft).trim());
   const hasRightContent = Boolean(String(resolvedHeaderRight).trim());
@@ -160,12 +165,15 @@ function drawReportTemplate(doc, template, reportTitle, generatedAt, margin) {
     headerTop += layout.fullWidthLogo.height + ((layout.leftHeaderLines.length || layout.rightHeaderLines.length) ? 8 : 0);
   }
 
-  if (layout.hasLogo && layout.logoDisplay === "inline") {
+  if (layout.hasLogo && layout.logoDisplay !== "full-width") {
+    const logoX = layout.logoDisplay === "inline-end"
+      ? layout.pageWidth - margin - layout.inlineLogo.width
+      : margin;
     try {
       doc.addImage(
         resolvedTemplate.logoDataUrl,
         getImageFormatFromDataUrl(resolvedTemplate.logoDataUrl),
-        margin,
+        logoX,
         headerTop + Math.max(0, (layout.headerRowHeight - layout.inlineLogo.height) / 2),
         layout.inlineLogo.width,
         layout.inlineLogo.height

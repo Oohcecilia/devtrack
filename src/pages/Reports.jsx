@@ -64,7 +64,12 @@ export default function Reports() {
       headerLeft: templateToSave.headerLeft || templateToSave.header || "",
       headerRight: templateToSave.headerRight || "",
       footer: templateToSave.footer || "",
-      logoDisplay: templateToSave.logoDisplay === "full-width" ? "full-width" : "inline",
+      logoDisplay:
+        templateToSave.logoDisplay === "full-width"
+          ? "full-width"
+          : templateToSave.logoDisplay === "inline-end"
+            ? "inline-end"
+            : "inline-start",
     };
 
     const nextTemplates = templates.some((template) => template.id === normalized.id)
@@ -311,14 +316,15 @@ export default function Reports() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Logo Display</label>
                 <Select
-                  value={draftTemplate.logoDisplay || "inline"}
+                  value={draftTemplate.logoDisplay || "inline-start"}
                   onValueChange={(value) => setDraftTemplate({ ...draftTemplate, logoDisplay: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Choose logo layout" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="inline">Inline with header</SelectItem>
+                    <SelectItem value="inline-start">Inline at start</SelectItem>
+                    <SelectItem value="inline-end">Inline at end</SelectItem>
                     <SelectItem value="full-width">Full width header image</SelectItem>
                   </SelectContent>
                 </Select>

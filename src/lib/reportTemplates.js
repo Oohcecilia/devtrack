@@ -8,7 +8,7 @@ const DEFAULT_TEMPLATE = {
   headerRight: "",
   footer: "",
   logoDataUrl: "",
-  logoDisplay: "inline",
+  logoDisplay: "inline-start",
 };
 
 function normalizeTemplate(template) {
@@ -21,7 +21,12 @@ function normalizeTemplate(template) {
     headerRight: String(template?.headerRight || ""),
     footer: String(template?.footer || ""),
     logoDataUrl: String(template?.logoDataUrl || ""),
-    logoDisplay: template?.logoDisplay === "full-width" ? "full-width" : "inline",
+    logoDisplay:
+      template?.logoDisplay === "full-width"
+        ? "full-width"
+        : template?.logoDisplay === "inline-end"
+          ? "inline-end"
+          : "inline-start",
   };
 }
 
@@ -77,6 +82,6 @@ export function createEmptyReportTemplate() {
     headerRight: "",
     footer: "",
     logoDataUrl: "",
-    logoDisplay: "inline",
+    logoDisplay: "inline-start",
   };
 }
