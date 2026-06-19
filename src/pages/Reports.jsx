@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { couchdb } from "@/api/couchdbClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileDown, Monitor, ArrowLeftRight, Plus, Save, CheckCircle2, Trash2 } from "lucide-react";
+import { FileDown, Monitor, ArrowLeftRight, Plus, Save, CheckCircle2, Trash2, ImagePlus, X } from "lucide-react";
 import {
   createEmptyReportTemplate,
   getActiveReportTemplateId,
@@ -20,6 +20,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const COLORS = ["hsl(173, 58%, 39%)", "hsl(199, 89%, 48%)", "hsl(43, 74%, 66%)"];
 
 export default function Reports() {
+  const logoInputRef = useRef(null);
   const [templates, setTemplates] = useState([getDefaultReportTemplate()]);
   const [selectedTemplateId, setSelectedTemplateId] = useState(getDefaultReportTemplate().id);
   const [activeTemplateId, setActiveTemplateId] = useState(getDefaultReportTemplate().id);
@@ -127,6 +128,31 @@ export default function Reports() {
     }
 
     toast.success("Report template deleted");
+  };
+
+  const handleLogoPick = () => {
+    logoInputRef.current?.click();
+  };
+
+  const handleLogoChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDraftTemplate((prev) => ({
+        ...prev,
+        logoDataUrl: typeof reader.result === "string" ? reader.result : "",
+      }));
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
+  const handleRemoveLogo = () => {
+    setDraftTemplate((prev) => ({ ...prev, logoDataUrl: "" }));
   };
 
   const handleInventoryReport = async () => {
@@ -240,6 +266,44 @@ export default function Reports() {
                 rows={5}
               />
             </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-sm font-medium">Header Logo</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoChange}
+                  />
+                  <Button type="button" variant="outline" onClick={handleLogoPick}>
+                    <ImagePlus className="w-4 h-4 mr-2" />
+                    Add Logo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleRemoveLogo}
+                    disabled={!draftTemplate.logoDataUrl}
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                {draftTemplate.logoDataUrl ? (
+                  <img
+                    src={draftTemplate.logoDataUrl}
+                    alt="Template logo preview"
+                    className="h-20 max-w-full object-contain"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">No logo selected for this template.</p>
+                )}
+              </div>
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Footer Content</label>
               <Textarea
@@ -249,6 +313,9 @@ export default function Reports() {
                 rows={4}
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              The active template is applied across all PDF exports in the app, including acknowledgement letters.
+            </p>
           </div>
         </div>
       </div>

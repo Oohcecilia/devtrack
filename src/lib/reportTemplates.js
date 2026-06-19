@@ -6,6 +6,7 @@ const DEFAULT_TEMPLATE = {
   name: "Default Template",
   header: "",
   footer: "",
+  logoDataUrl: "",
 };
 
 function normalizeTemplate(template) {
@@ -14,6 +15,7 @@ function normalizeTemplate(template) {
     name: String(template?.name || "").trim() || "Untitled Template",
     header: String(template?.header || ""),
     footer: String(template?.footer || ""),
+    logoDataUrl: String(template?.logoDataUrl || ""),
   };
 }
 
@@ -55,11 +57,18 @@ export function setActiveReportTemplateId(templateId) {
   localStorage.setItem(ACTIVE_TEMPLATE_STORAGE_KEY, templateId);
 }
 
+export function getActiveReportTemplate() {
+  const templates = getStoredReportTemplates();
+  const activeId = getActiveReportTemplateId();
+  return templates.find((template) => template.id === activeId) || templates[0] || getDefaultReportTemplate();
+}
+
 export function createEmptyReportTemplate() {
   return {
     id: crypto.randomUUID(),
     name: "",
     header: "",
     footer: "",
+    logoDataUrl: "",
   };
 }

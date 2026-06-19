@@ -1,5 +1,20 @@
 import jsPDF from "jspdf";
 import { format } from "date-fns";
+import { getActiveReportTemplate } from "@/lib/reportTemplates";
+
+function resolveReportTemplate(template) {
+  return template || getActiveReportTemplate();
+}
+
+function getImageFormatFromDataUrl(dataUrl) {
+  if (String(dataUrl).startsWith("data:image/jpeg") || String(dataUrl).startsWith("data:image/jpg")) {
+    return "JPEG";
+  }
+  if (String(dataUrl).startsWith("data:image/webp")) {
+    return "WEBP";
+  }
+  return "PNG";
+}
 
 function resolveTemplateText(templateText, replacements) {
   return String(templateText || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, key) => replacements[key] ?? "");
@@ -20,15 +35,21 @@ function getReportPageLayout(doc, template, replacements, margin) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const contentWidth = pageWidth - margin * 2;
-  const headerLines = getTemplateLines(doc, resolveTemplateText(template?.header, replacements), contentWidth);
+  const hasLogo = Boolean(template?.logoDataUrl);
+  const logoSize = hasLogo ? 20 : 0;
+  const headerTextWidth = hasLogo ? contentWidth - logoSize - 8 : contentWidth;
+  const headerLines = getTemplateLines(doc, resolveTemplateText(template?.header, replacements), headerTextWidth);
   const footerLines = getTemplateLines(doc, resolveTemplateText(template?.footer, replacements), contentWidth);
-  const headerHeight = headerLines.length ? headerLines.length * 4 + 10 : 0;
-  const footerHeight = footerLines.length ? footerLines.length * 4 + 10 : 0;
+  const headerContentHeight = headerLines.length ? headerLines.length * 4 + 6 : 0;
+  const headerHeight = hasLogo || headerLines.length ? Math.max(logoSize, headerContentHeight) + 12 : 0;
+  const footerHeight = footerLines.length ? footerLines.length * 4 + 12 : 0;
 
   return {
     pageWidth,
     pageHeight,
     contentWidth,
+    hasLogo,
+    logoSize,
     headerLines,
     footerLines,
     headerHeight,
@@ -39,30 +60,47 @@ function getReportPageLayout(doc, template, replacements, margin) {
 }
 
 function drawReportTemplate(doc, template, reportTitle, generatedAt, margin) {
+  const resolvedTemplate = resolveReportTemplate(template);
   const pageNumber = doc.getCurrentPageInfo().pageNumber;
   const replacements = {
     report_title: reportTitle,
     generated_at: generatedAt,
     page_number: String(pageNumber),
   };
-  const layout = getReportPageLayout(doc, template, replacements, margin);
+  const layout = getReportPageLayout(doc, resolvedTemplate, replacements, margin);
+
+  if (layout.headerHeight > 0) {
+    doc.setFillColor(247, 249, 252);
+    doc.roundedRect(margin - 4, 10, layout.pageWidth - (margin - 4) * 2, layout.headerHeight, 4, 4, "F");
+  }
+
+  let headerTextX = margin;
+  if (layout.hasLogo) {
+    try {
+      doc.addImage(
+        resolvedTemplate.logoDataUrl,
+        getImageFormatFromDataUrl(resolvedTemplate.logoDataUrl),
+        margin,
+        16,
+        layout.logoSize,
+        layout.logoSize
+      );
+      headerTextX += layout.logoSize + 8;
+    } catch {
+      // Ignore invalid image payloads and continue rendering text-only headers.
+    }
+  }
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(90, 90, 90);
 
   if (layout.headerLines.length) {
-    doc.text(layout.headerLines, margin, 14);
-    doc.setDrawColor(210, 210, 210);
-    doc.setLineWidth(0.3);
-    doc.line(margin, margin + layout.headerHeight - 2, layout.pageWidth - margin, margin + layout.headerHeight - 2);
+    doc.text(layout.headerLines, headerTextX, 18);
   }
 
   if (layout.footerLines.length) {
-    const footerTop = layout.pageHeight - margin - layout.footerHeight + 6;
-    doc.setDrawColor(210, 210, 210);
-    doc.setLineWidth(0.3);
-    doc.line(margin, footerTop - 6, layout.pageWidth - margin, footerTop - 6);
+    const footerTop = layout.pageHeight - margin - layout.footerHeight + 8;
     doc.text(layout.footerLines, margin, footerTop);
   }
 
@@ -83,22 +121,18 @@ function ensureSpace(doc, currentY, heightNeeded, template, reportTitle, generat
 
 export function generateAcknowledgementPDF(assignment, employee, devices) {
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
-  let y = 30;
+  const generatedAt = format(new Date(), "MMMM d, yyyy 'at' h:mm a");
+  const reportTitle = "Equipment Acknowledgement Letter";
+  const layout = drawReportTemplate(doc, undefined, reportTitle, generatedAt, margin);
+  const pageWidth = layout.pageWidth;
+  let y = layout.contentTop;
 
-  // Header
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text("Equipment Acknowledgement Letter", pageWidth / 2, y, { align: "center" });
-  y += 15;
+  doc.text(reportTitle, pageWidth / 2, y, { align: "center" });
+  y += 10;
 
-  doc.setDrawColor(0, 150, 136);
-  doc.setLineWidth(0.5);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 15;
-
-  // Date
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
   doc.text(`Date: ${format(new Date(), "MMMM d, yyyy")}`, margin, y);
@@ -173,27 +207,23 @@ export function generateAcknowledgementPDF(assignment, employee, devices) {
 }
 
 export function generateInventoryReportPDF(devices, template) {
+  const resolvedTemplate = resolveReportTemplate(template);
   const doc = new jsPDF();
   const margin = 20;
   const generatedAt = format(new Date(), "MMMM d, yyyy 'at' h:mm a");
   const reportTitle = "Device Inventory Report";
-  let layout = drawReportTemplate(doc, template, reportTitle, generatedAt, margin);
+  let layout = drawReportTemplate(doc, resolvedTemplate, reportTitle, generatedAt, margin);
   const pageWidth = layout.pageWidth;
   let y = layout.contentTop;
 
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
   doc.text(reportTitle, pageWidth / 2, y, { align: "center" });
-  y += 8;
+  y += 10;
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.text(`Generated: ${generatedAt}`, pageWidth / 2, y, { align: "center" });
-  y += 5;
-
-  doc.setDrawColor(0, 150, 136);
-  doc.setLineWidth(0.5);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 10;
+  y += 12;
 
   // Summary
   const available = devices.filter(d => d.status === "Available").length;
@@ -228,7 +258,7 @@ export function generateInventoryReportPDF(devices, template) {
 
   doc.setFont("helvetica", "normal");
   devices.forEach(d => {
-    const next = ensureSpace(doc, y, 8, template, reportTitle, generatedAt, margin);
+    const next = ensureSpace(doc, y, 8, resolvedTemplate, reportTitle, generatedAt, margin);
     y = next.y;
     layout = next.layout;
 
@@ -248,27 +278,23 @@ export function generateInventoryReportPDF(devices, template) {
 }
 
 export function generateAssignmentReportPDF(assignments, template) {
+  const resolvedTemplate = resolveReportTemplate(template);
   const doc = new jsPDF();
   const margin = 20;
   const generatedAt = format(new Date(), "MMMM d, yyyy 'at' h:mm a");
   const reportTitle = "Assignment Report";
-  let layout = drawReportTemplate(doc, template, reportTitle, generatedAt, margin);
+  let layout = drawReportTemplate(doc, resolvedTemplate, reportTitle, generatedAt, margin);
   const pageWidth = layout.pageWidth;
   let y = layout.contentTop;
 
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
   doc.text(reportTitle, pageWidth / 2, y, { align: "center" });
-  y += 8;
+  y += 10;
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.text(`Generated: ${generatedAt}`, pageWidth / 2, y, { align: "center" });
-  y += 5;
-
-  doc.setDrawColor(0, 150, 136);
-  doc.setLineWidth(0.5);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 10;
+  y += 12;
 
   const active = assignments.filter(a => a.status === "Active").length;
   const returned = assignments.filter(a => a.status === "Returned").length;
@@ -301,7 +327,7 @@ export function generateAssignmentReportPDF(assignments, template) {
 
   doc.setFont("helvetica", "normal");
   assignments.forEach(a => {
-    const next = ensureSpace(doc, y, 8, template, reportTitle, generatedAt, margin);
+    const next = ensureSpace(doc, y, 8, resolvedTemplate, reportTitle, generatedAt, margin);
     y = next.y;
     layout = next.layout;
 
