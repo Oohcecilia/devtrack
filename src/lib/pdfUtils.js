@@ -1,6 +1,86 @@
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
+function resolveTemplateText(templateText, replacements) {
+  return String(templateText || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, key) => replacements[key] ?? "");
+}
+
+function getTemplateLines(doc, text, maxWidth) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  return trimmed
+    .split("\n")
+    .flatMap((line) => doc.splitTextToSize(line, maxWidth));
+}
+
+function getReportPageLayout(doc, template, replacements, margin) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const contentWidth = pageWidth - margin * 2;
+  const headerLines = getTemplateLines(doc, resolveTemplateText(template?.header, replacements), contentWidth);
+  const footerLines = getTemplateLines(doc, resolveTemplateText(template?.footer, replacements), contentWidth);
+  const headerHeight = headerLines.length ? headerLines.length * 4 + 10 : 0;
+  const footerHeight = footerLines.length ? footerLines.length * 4 + 10 : 0;
+
+  return {
+    pageWidth,
+    pageHeight,
+    contentWidth,
+    headerLines,
+    footerLines,
+    headerHeight,
+    footerHeight,
+    contentTop: margin + headerHeight,
+    contentBottom: pageHeight - margin - footerHeight,
+  };
+}
+
+function drawReportTemplate(doc, template, reportTitle, generatedAt, margin) {
+  const pageNumber = doc.getCurrentPageInfo().pageNumber;
+  const replacements = {
+    report_title: reportTitle,
+    generated_at: generatedAt,
+    page_number: String(pageNumber),
+  };
+  const layout = getReportPageLayout(doc, template, replacements, margin);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(90, 90, 90);
+
+  if (layout.headerLines.length) {
+    doc.text(layout.headerLines, margin, 14);
+    doc.setDrawColor(210, 210, 210);
+    doc.setLineWidth(0.3);
+    doc.line(margin, margin + layout.headerHeight - 2, layout.pageWidth - margin, margin + layout.headerHeight - 2);
+  }
+
+  if (layout.footerLines.length) {
+    const footerTop = layout.pageHeight - margin - layout.footerHeight + 6;
+    doc.setDrawColor(210, 210, 210);
+    doc.setLineWidth(0.3);
+    doc.line(margin, footerTop - 6, layout.pageWidth - margin, footerTop - 6);
+    doc.text(layout.footerLines, margin, footerTop);
+  }
+
+  doc.setTextColor(0, 0, 0);
+  return layout;
+}
+
+function ensureSpace(doc, currentY, heightNeeded, template, reportTitle, generatedAt, margin) {
+  let layout = drawReportTemplate(doc, template, reportTitle, generatedAt, margin);
+  if (currentY + heightNeeded <= layout.contentBottom) {
+    return { y: currentY, layout };
+  }
+
+  doc.addPage();
+  layout = drawReportTemplate(doc, template, reportTitle, generatedAt, margin);
+  return { y: layout.contentTop, layout };
+}
+
 export function generateAcknowledgementPDF(assignment, employee, devices) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -92,19 +172,22 @@ export function generateAcknowledgementPDF(assignment, employee, devices) {
   doc.save(`acknowledgement_${(employee?.full_name || assignment.employee_name).replace(/\s+/g, "_")}.pdf`);
 }
 
-export function generateInventoryReportPDF(devices) {
+export function generateInventoryReportPDF(devices, template) {
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
-  let y = 30;
+  const generatedAt = format(new Date(), "MMMM d, yyyy 'at' h:mm a");
+  const reportTitle = "Device Inventory Report";
+  let layout = drawReportTemplate(doc, template, reportTitle, generatedAt, margin);
+  const pageWidth = layout.pageWidth;
+  let y = layout.contentTop;
 
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text("Device Inventory Report", pageWidth / 2, y, { align: "center" });
+  doc.text(reportTitle, pageWidth / 2, y, { align: "center" });
   y += 8;
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`Generated: ${format(new Date(), "MMMM d, yyyy 'at' h:mm a")}`, pageWidth / 2, y, { align: "center" });
+  doc.text(`Generated: ${generatedAt}`, pageWidth / 2, y, { align: "center" });
   y += 5;
 
   doc.setDrawColor(0, 150, 136);
@@ -126,25 +209,31 @@ export function generateInventoryReportPDF(devices) {
   doc.text(`Total Devices: ${devices.length}    |    Available: ${available}    |    Assigned: ${assigned}    |    Maintenance: ${maintenance}`, margin, y);
   y += 15;
 
-  // Table
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setFillColor(240, 240, 240);
-  doc.rect(margin, y - 4, pageWidth - margin * 2, 8, "F");
+  const drawInventoryTableHeader = () => {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, y - 4, pageWidth - margin * 2, 8, "F");
+    doc.text("Asset Tag", cols[0], y);
+    doc.text("Device Name", cols[1], y);
+    doc.text("Brand", cols[2], y);
+    doc.text("Model", cols[3], y);
+    doc.text("Serial #", cols[4], y);
+    doc.text("Status", cols[5], y);
+    y += 10;
+  };
+
   const cols = [margin + 2, margin + 25, margin + 65, margin + 95, margin + 120, margin + 148];
-  doc.text("Asset Tag", cols[0], y);
-  doc.text("Device Name", cols[1], y);
-  doc.text("Brand", cols[2], y);
-  doc.text("Model", cols[3], y);
-  doc.text("Serial #", cols[4], y);
-  doc.text("Status", cols[5], y);
-  y += 10;
+  drawInventoryTableHeader();
 
   doc.setFont("helvetica", "normal");
   devices.forEach(d => {
-    if (y > 275) {
-      doc.addPage();
-      y = 20;
+    const next = ensureSpace(doc, y, 8, template, reportTitle, generatedAt, margin);
+    y = next.y;
+    layout = next.layout;
+
+    if (y === layout.contentTop) {
+      drawInventoryTableHeader();
     }
     doc.text(d.asset_tag || "", cols[0], y);
     doc.text((d.device_name || "").substring(0, 20), cols[1], y);
@@ -158,19 +247,22 @@ export function generateInventoryReportPDF(devices) {
   doc.save(`inventory_report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
 }
 
-export function generateAssignmentReportPDF(assignments) {
+export function generateAssignmentReportPDF(assignments, template) {
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
-  let y = 30;
+  const generatedAt = format(new Date(), "MMMM d, yyyy 'at' h:mm a");
+  const reportTitle = "Assignment Report";
+  let layout = drawReportTemplate(doc, template, reportTitle, generatedAt, margin);
+  const pageWidth = layout.pageWidth;
+  let y = layout.contentTop;
 
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text("Assignment Report", pageWidth / 2, y, { align: "center" });
+  doc.text(reportTitle, pageWidth / 2, y, { align: "center" });
   y += 8;
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`Generated: ${format(new Date(), "MMMM d, yyyy 'at' h:mm a")}`, pageWidth / 2, y, { align: "center" });
+  doc.text(`Generated: ${generatedAt}`, pageWidth / 2, y, { align: "center" });
   y += 5;
 
   doc.setDrawColor(0, 150, 136);
@@ -190,24 +282,31 @@ export function generateAssignmentReportPDF(assignments) {
   doc.text(`Total Assignments: ${assignments.length}    |    Active: ${active}    |    Returned: ${returned}`, margin, y);
   y += 15;
 
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setFillColor(240, 240, 240);
-  doc.rect(margin, y - 4, pageWidth - margin * 2, 8, "F");
+  const drawAssignmentTableHeader = () => {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, y - 4, pageWidth - margin * 2, 8, "F");
+    doc.text("Employee", cols[0], y);
+    doc.text("Branch", cols[1], y);
+    doc.text("Device", cols[2], y);
+    doc.text("Asset Tag", cols[3], y);
+    doc.text("Assigned", cols[4], y);
+    doc.text("Status", cols[5], y);
+    y += 10;
+  };
+
   const cols = [margin + 2, margin + 34, margin + 62, margin + 92, margin + 118, margin + 148];
-  doc.text("Employee", cols[0], y);
-  doc.text("Branch", cols[1], y);
-  doc.text("Device", cols[2], y);
-  doc.text("Asset Tag", cols[3], y);
-  doc.text("Assigned", cols[4], y);
-  doc.text("Status", cols[5], y);
-  y += 10;
+  drawAssignmentTableHeader();
 
   doc.setFont("helvetica", "normal");
   assignments.forEach(a => {
-    if (y > 275) {
-      doc.addPage();
-      y = 20;
+    const next = ensureSpace(doc, y, 8, template, reportTitle, generatedAt, margin);
+    y = next.y;
+    layout = next.layout;
+
+    if (y === layout.contentTop) {
+      drawAssignmentTableHeader();
     }
     doc.text((a.employee_name || "").substring(0, 16), cols[0], y);
     doc.text((a.branch || "").substring(0, 14), cols[1], y);

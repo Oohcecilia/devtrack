@@ -1,13 +1,47 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { couchdb } from "@/api/couchdbClient";
 import { Button } from "@/components/ui/button";
-import { FileDown, Monitor, ArrowLeftRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileDown, Monitor, ArrowLeftRight, Plus, Save, CheckCircle2, Trash2 } from "lucide-react";
+import {
+  createEmptyReportTemplate,
+  getActiveReportTemplateId,
+  getDefaultReportTemplate,
+  getStoredReportTemplates,
+  saveReportTemplates,
+  setActiveReportTemplateId,
+} from "@/lib/reportTemplates";
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const COLORS = ["hsl(173, 58%, 39%)", "hsl(199, 89%, 48%)", "hsl(43, 74%, 66%)"];
 
 export default function Reports() {
+  const [templates, setTemplates] = useState([getDefaultReportTemplate()]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(getDefaultReportTemplate().id);
+  const [activeTemplateId, setActiveTemplateId] = useState(getDefaultReportTemplate().id);
+  const [draftTemplate, setDraftTemplate] = useState(getDefaultReportTemplate());
+
+  useEffect(() => {
+    const storedTemplates = getStoredReportTemplates();
+    const activeId = getActiveReportTemplateId();
+    const initialSelected =
+      storedTemplates.find((template) => template.id === activeId) ||
+      storedTemplates[0] ||
+      getDefaultReportTemplate();
+    const initialActiveId = storedTemplates.some((template) => template.id === activeId)
+      ? activeId
+      : initialSelected.id;
+
+    setTemplates(storedTemplates);
+    setActiveTemplateId(initialActiveId);
+    setSelectedTemplateId(initialSelected.id);
+    setDraftTemplate(initialSelected);
+  }, []);
+
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
     queryFn: () => couchdb.entities.Device.list(),
@@ -18,15 +52,92 @@ export default function Reports() {
     queryFn: () => couchdb.entities.Assignment.list(),
   });
 
+  const activeTemplate =
+    templates.find((template) => template.id === activeTemplateId) ||
+    getDefaultReportTemplate();
+
+  const upsertTemplate = (templateToSave) => {
+    const normalized = {
+      ...templateToSave,
+      name: templateToSave.name.trim() || "Untitled Template",
+      header: templateToSave.header || "",
+      footer: templateToSave.footer || "",
+    };
+
+    const nextTemplates = templates.some((template) => template.id === normalized.id)
+      ? templates.map((template) => (template.id === normalized.id ? normalized : template))
+      : [...templates, normalized];
+
+    setTemplates(nextTemplates);
+    saveReportTemplates(nextTemplates);
+    return normalized;
+  };
+
+  const handleTemplateSelect = (templateId) => {
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) {
+      return;
+    }
+    setSelectedTemplateId(template.id);
+    setDraftTemplate(template);
+  };
+
+  const handleNewTemplate = () => {
+    const nextTemplate = createEmptyReportTemplate();
+    setSelectedTemplateId(nextTemplate.id);
+    setDraftTemplate(nextTemplate);
+  };
+
+  const handleSaveTemplate = () => {
+    const savedTemplate = upsertTemplate(draftTemplate);
+    setSelectedTemplateId(savedTemplate.id);
+    setDraftTemplate(savedTemplate);
+    toast.success("Report template saved");
+  };
+
+  const handleApplyTemplate = () => {
+    const savedTemplate = upsertTemplate(draftTemplate);
+    setSelectedTemplateId(savedTemplate.id);
+    setDraftTemplate(savedTemplate);
+    setActiveTemplateId(savedTemplate.id);
+    setActiveReportTemplateId(savedTemplate.id);
+    toast.success(`Applied template: ${savedTemplate.name}`);
+  };
+
+  const handleDeleteTemplate = () => {
+    if (selectedTemplateId === getDefaultReportTemplate().id) {
+      toast.info("The default template cannot be deleted");
+      return;
+    }
+
+    const nextTemplates = templates.filter((template) => template.id !== selectedTemplateId);
+    const fallbackTemplate =
+      nextTemplates.find((template) => template.id === activeTemplateId) ||
+      nextTemplates[0] ||
+      getDefaultReportTemplate();
+
+    setTemplates(nextTemplates);
+    saveReportTemplates(nextTemplates);
+    setSelectedTemplateId(fallbackTemplate.id);
+    setDraftTemplate(fallbackTemplate);
+
+    if (activeTemplateId === selectedTemplateId) {
+      setActiveTemplateId(fallbackTemplate.id);
+      setActiveReportTemplateId(fallbackTemplate.id);
+    }
+
+    toast.success("Report template deleted");
+  };
+
   const handleInventoryReport = async () => {
     const { generateInventoryReportPDF } = await import("@/lib/pdfUtils");
-    generateInventoryReportPDF(devices);
+    generateInventoryReportPDF(devices, activeTemplate);
     toast.success("Inventory report downloaded");
   };
 
   const handleAssignmentReport = async () => {
     const { generateAssignmentReportPDF } = await import("@/lib/pdfUtils");
-    generateAssignmentReportPDF(assignments);
+    generateAssignmentReportPDF(assignments, activeTemplate);
     toast.success("Assignment report downloaded");
   };
 
@@ -49,6 +160,99 @@ export default function Reports() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="bg-card rounded-xl border border-border p-6 space-y-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 className="text-base font-semibold">Report Templates</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Create reusable layouts for exported reports by customizing header and footer content.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={handleNewTemplate}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Template
+            </Button>
+            <Button type="button" variant="outline" onClick={handleSaveTemplate}>
+              <Save className="w-4 h-4 mr-2" />
+              Save Template
+            </Button>
+            <Button type="button" onClick={handleApplyTemplate}>
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+              Apply Template
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDeleteTemplate}
+              disabled={selectedTemplateId === getDefaultReportTemplate().id}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px,1fr]">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Saved Templates</label>
+              <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm">
+              <p className="font-medium">Active Template</p>
+              <p className="mt-1 text-muted-foreground">{activeTemplate.name}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-4 text-xs text-muted-foreground">
+              <p>Supported placeholders:</p>
+              <p className="mt-2 font-mono">{"{{report_title}}"}</p>
+              <p className="font-mono">{"{{generated_at}}"}</p>
+              <p className="font-mono">{"{{page_number}}"}</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Template Name</label>
+              <Input
+                value={draftTemplate.name}
+                onChange={(event) => setDraftTemplate({ ...draftTemplate, name: event.target.value })}
+                placeholder="e.g. Management Layout"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Header Content</label>
+              <Textarea
+                value={draftTemplate.header}
+                onChange={(event) => setDraftTemplate({ ...draftTemplate, header: event.target.value })}
+                placeholder={"Company Name\n{{report_title}}\nGenerated: {{generated_at}}"}
+                rows={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Footer Content</label>
+              <Textarea
+                value={draftTemplate.footer}
+                onChange={(event) => setDraftTemplate({ ...draftTemplate, footer: event.target.value })}
+                placeholder={"Confidential\nPage {{page_number}}"}
+                rows={4}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Report Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card rounded-xl border border-border p-6 space-y-4">
